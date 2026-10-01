@@ -1,6 +1,6 @@
 // =====================================================================
 // 🎮 Battle City — Стальные коты
-// Step 2: карта и препятствия
+// Step 3: игрок-танк, движение, стрельба
 // =====================================================================
 
 // ---------------------------------------------------------------------
@@ -13,50 +13,59 @@ const CONFIG = {
   FPS: 60,
   STEP_MS: 1000 / 60,
 
-  // Насколько видна фоновая сетка (0 = совсем нет)
   GRID_ALPHA: 0.025,
+
+  // Игрок
+  PLAYER: {
+    SPEED: 90,          // px/сек
+    SNAP_SPEED: 200,    // скорость выравнивания к сетке
+    BULLET_SPEED: 280,  // px/сек
+    BULLET_SIZE: 6,
+    RELOAD_MS: 380,     // перезарядка между выстрелами
+  },
 
   PALETTE: {
     bg:         '#0a0612',
 
-    // Кирпич
     brick:      '#b8543a',
     brickLight: '#d96a4a',
     brickDark:  '#6e2c1c',
 
-    // Сталь
     steel:      '#c8c8d2',
     steelLight: '#f0f0f5',
     steelDark:  '#6e6e7a',
 
-    // Вода
     water:      '#1e4f9e',
     waterLight: '#5c94e8',
     waterDeep:  '#0d2c5e',
 
-    // Кусты
     trees:      '#2d7a3a',
     treesLight: '#4aa85a',
     treesDark:  '#123a1c',
 
-    // База
     base:       '#ffd24a',
     baseLight:  '#fff0a8',
     baseDark:   '#7a5210',
     baseBg:     '#2a1a05',
+
+    // Танк игрока
+    playerTrack:      '#5a2a4a',
+    playerTrackLight: '#a04a7a',
+    playerBody:       '#ff8fc8',
+    playerBodyLight:  '#ffb7e0',
+    playerTurret:     '#c66ba0',
+    playerBarrel:     '#ffffff',
+
+    // Пуля
+    bullet:     '#ffd24a',
+    bulletGlow: '#ff8fc8',
   },
 };
 
-const W = CONFIG.TILE * CONFIG.GRID; // 476
+const W = CONFIG.TILE * CONFIG.GRID;
 
 // ---------------------------------------------------------------------
-// LEVELS — карты уровней
-//   B — brick    (кирпич)
-//   S — steel    (сталь)
-//   W — water    (вода)
-//   T — trees    (кусты)
-//   . — empty    (пусто)
-//   База задаётся отдельным полем base: {x, y} — левый верхний угол 2×2
+// LEVELS
 // ---------------------------------------------------------------------
 const LEVELS = [
   {
@@ -124,59 +133,47 @@ const state = {
 
   build: { speed: 1, armor: 1, reload: 1, damage: 1 },
 
-  // 🆕 Карта
   levelData: null,
-  map: null,          // 2D-массив тайлов [y][x]
-  base: null,         // { x, y, alive }
+  map: null,
+  base: null,
+
+  // 🆕
+  player: null,
+  bullets: [],
 };
 
 // ---------------------------------------------------------------------
-// MAP — загрузка уровня из шаблона
+// MAP
 // ---------------------------------------------------------------------
 function loadLevel(index) {
   const level = LEVELS[index % LEVELS.length];
   state.levelData = level;
 
-  // База
   state.base = {
     x: level.base.x,
     y: level.base.y,
     alive: true,
   };
 
-  // Карта
   state.map = [];
   for (let y = 0; y < CONFIG.GRID; y++) {
     const row = [];
     const line = level.map[y] || '';
-
     for (let x = 0; x < CONFIG.GRID; x++) {
       const ch = line[x] || '.';
       let tile = null;
-
       switch (ch) {
-        case 'B':
-          // sub[] — 4 подъячейки: [TL, TR, BL, BR] (1 = целая, 0 = разрушена)
-          tile = { type: 'brick', sub: [1, 1, 1, 1] };
-          break;
-        case 'S':
-          tile = { type: 'steel' };
-          break;
-        case 'W':
-          tile = { type: 'water' };
-          break;
-        case 'T':
-          tile = { type: 'trees' };
-          break;
-        // '.' → null (пусто)
+        case 'B': tile = { type: 'brick', sub: [1, 1, 1, 1] }; break;
+        case 'S': tile = { type: 'steel' }; break;
+        case 'W': tile = { type: 'water' }; break;
+        case 'T': tile = { type: 'trees' }; break;
       }
-
       row.push(tile);
     }
     state.map.push(row);
   }
 
-  // Очищаем область базы — там не должно быть тайлов
+  // Очистка области базы
   for (let dy = 0; dy < 2; dy++) {
     for (let dx = 0; dx < 2; dx++) {
       const by = state.base.y + dy;
@@ -188,7 +185,6 @@ function loadLevel(index) {
   }
 }
 
-// Проверка: попадает ли клетка (x, y) в область базы 2×2
 function isBaseCell(x, y) {
   if (!state.base) return false;
   return x >= state.base.x && x < state.base.x + 2 &&
@@ -196,10 +192,309 @@ function isBaseCell(x, y) {
 }
 
 // ---------------------------------------------------------------------
-// RENDER — рисование
+// TANK — создание игрока
 // ---------------------------------------------------------------------
+function spawnPlayer() {
+  const { TILE } = CONFIG;
+  // Спавн в клетке (4, 15) — слева от базы
+  state.player = {
+    x: 4 * TILE,
+    y: 15 * TILE,
+    w: TILE,
+    h: TILE,
+    dir: 'up',
+    moving: false,
+    alive: true,
+    speed: CONFIG.PLAYER.SPEED,
+    lastShot: 0,
+    reloadMs: CONFIG.PLAYER.RELOAD_MS,
+  };
+}
 
-// Фон + едва заметная сетка
+// ---------------------------------------------------------------------
+// INPUT — клавиатура
+// ---------------------------------------------------------------------
+const keysDown = new Set();
+
+document.addEventListener('keydown', (e) => {
+  // Служебные клавиши (пауза, старт, огонь) — до game over
+  if (e.code === 'Space' || e.key === ' ') {
+    e.preventDefault();
+    if (!state.isRunning) {
+      startGame();
+    } else if (state.isPaused) {
+      togglePause();
+    } else {
+      shootPlayer();
+    }
+    return;
+  }
+
+  if (e.key === 'p' || e.key === 'P' || e.key === 'з' || e.key === 'З') {
+    e.preventDefault();
+    if (state.isRunning) togglePause();
+    return;
+  }
+
+  // Игровое движение
+  keysDown.add(e.code);
+});
+
+document.addEventListener('keyup', (e) => {
+  keysDown.delete(e.code);
+});
+
+// ---------------------------------------------------------------------
+// PHYSICS — коллизии
+// ---------------------------------------------------------------------
+function aabb(a, b) {
+  return a.x < b.x + b.w && a.x + a.w > b.x &&
+         a.y < b.y + b.h && a.y + a.h > b.y;
+}
+
+// Блокирующие тайлы для танка: brick / steel / water + база
+function tankCollidesMap(x, y, w, h) {
+  const { TILE, GRID } = CONFIG;
+
+  const x0 = Math.floor(x / TILE);
+  const y0 = Math.floor(y / TILE);
+  const x1 = Math.floor((x + w - 1) / TILE);
+  const y1 = Math.floor((y + h - 1) / TILE);
+
+  // Выход за поле — блок
+  if (x0 < 0 || y0 < 0 || x1 >= GRID || y1 >= GRID) return true;
+
+  for (let cy = y0; cy <= y1; cy++) {
+    for (let cx = x0; cx <= x1; cx++) {
+      const t = state.map[cy] && state.map[cy][cx];
+      if (!t) continue;
+      if (t.type === 'brick' || t.type === 'steel' || t.type === 'water') {
+        return true;
+      }
+    }
+  }
+
+  // База
+  if (state.base && state.base.alive) {
+    const bx = state.base.x * TILE;
+    const by = state.base.y * TILE;
+    const bs = TILE * 2;
+    if (aabb({ x, y, w, h }, { x: bx, y: by, w: bs, h: bs })) return true;
+  }
+
+  return false;
+}
+
+// ---------------------------------------------------------------------
+// TANK — движение игрока
+// ---------------------------------------------------------------------
+function updatePlayer(dt) {
+  const p = state.player;
+  if (!p || !p.alive) return;
+
+  // Определяем желаемое направление
+  let ndir = null;
+  if (keysDown.has('ArrowLeft') || keysDown.has('KeyA')) ndir = 'left';
+  else if (keysDown.has('ArrowRight') || keysDown.has('KeyD')) ndir = 'right';
+  else if (keysDown.has('ArrowUp') || keysDown.has('KeyW')) ndir = 'up';
+  else if (keysDown.has('ArrowDown') || keysDown.has('KeyS')) ndir = 'down';
+
+  if (ndir) {
+    p.dir = ndir;
+    p.moving = true;
+  } else {
+    p.moving = false;
+  }
+
+  if (!p.moving) return;
+
+  const { TILE } = CONFIG;
+
+  // Snap перпендикулярной оси к сетке (плавное выравнивание)
+  if (p.dir === 'left' || p.dir === 'right') {
+    const target = Math.round(p.y / TILE) * TILE;
+    const diff = target - p.y;
+    if (Math.abs(diff) > 0.5) {
+      const step = Math.sign(diff) * Math.min(CONFIG.PLAYER.SNAP_SPEED * dt, Math.abs(diff));
+      const ny = p.y + step;
+      if (!tankCollidesMap(p.x, ny, p.w, p.h)) p.y = ny;
+    } else {
+      p.y = target;
+    }
+  } else {
+    const target = Math.round(p.x / TILE) * TILE;
+    const diff = target - p.x;
+    if (Math.abs(diff) > 0.5) {
+      const step = Math.sign(diff) * Math.min(CONFIG.PLAYER.SNAP_SPEED * dt, Math.abs(diff));
+      const nx = p.x + step;
+      if (!tankCollidesMap(nx, p.y, p.w, p.h)) p.x = nx;
+    } else {
+      p.x = target;
+    }
+  }
+
+  // Основное движение
+  let dx = 0, dy = 0;
+  if (p.dir === 'left') dx = -1;
+  else if (p.dir === 'right') dx = 1;
+  else if (p.dir === 'up') dy = -1;
+  else if (p.dir === 'down') dy = 1;
+
+  const nx = p.x + dx * p.speed * dt;
+  const ny = p.y + dy * p.speed * dt;
+
+  if (dx !== 0) {
+    if (!tankCollidesMap(nx, p.y, p.w, p.h)) p.x = nx;
+  }
+  if (dy !== 0) {
+    if (!tankCollidesMap(p.x, ny, p.w, p.h)) p.y = ny;
+  }
+}
+
+// ---------------------------------------------------------------------
+// BULLETS
+// ---------------------------------------------------------------------
+function shootPlayer() {
+  const p = state.player;
+  if (!p || !p.alive) return;
+
+  // Одна пуля одновременно
+  const hasBullet = state.bullets.some(b => b.owner === 'player');
+  if (hasBullet) return;
+
+  const now = performance.now();
+  if (now - p.lastShot < p.reloadMs) return;
+  p.lastShot = now;
+
+  const { BULLET_SIZE, BULLET_SPEED } = CONFIG.PLAYER;
+  const cx = p.x + p.w / 2;
+  const cy = p.y + p.h / 2;
+
+  let bx, by, dx = 0, dy = 0;
+  const half = BULLET_SIZE / 2;
+
+  switch (p.dir) {
+    case 'left':
+      dx = -1; bx = p.x - half;      by = cy - half; break;
+    case 'right':
+      dx = 1;  bx = p.x + p.w - half; by = cy - half; break;
+    case 'up':
+      dy = -1; bx = cx - half; by = p.y - half; break;
+    case 'down':
+      dy = 1;  bx = cx - half; by = p.y + p.h - half; break;
+  }
+
+  state.bullets.push({
+    x: bx, y: by,
+    w: BULLET_SIZE, h: BULLET_SIZE,
+    dx, dy,
+    speed: BULLET_SPEED,
+    owner: 'player',
+  });
+}
+
+// Попадание по кирпичу: определить подъячейку и разрушить
+function hitBrick(cx, cy, hitX, hitY) {
+  const { TILE } = CONFIG;
+  const tile = state.map[cy][cx];
+  if (!tile || tile.type !== 'brick') return false;
+
+  const px = cx * TILE;
+  const py = cy * TILE;
+  const half = TILE / 2;
+
+  const lx = hitX - px;
+  const ly = hitY - py;
+
+  const col = lx < half ? 0 : 1;
+  const row = ly < half ? 0 : 1;
+  const idx = row * 2 + col;
+
+  tile.sub[idx] = 0;
+
+  if (tile.sub.every(s => s === 0)) {
+    state.map[cy][cx] = null;
+  }
+  return true;
+}
+
+// Проверка попадания пули в карту/базу. Возвращает true если пуля остановилась.
+function bulletHitWorld(bullet) {
+  const { TILE, GRID } = CONFIG;
+
+  // Выход за поле
+  if (bullet.x < 0 || bullet.y < 0 ||
+      bullet.x + bullet.w > W || bullet.y + bullet.h > W) {
+    return true;
+  }
+
+  // База
+  if (state.base && state.base.alive) {
+    const bx = state.base.x * TILE;
+    const by = state.base.y * TILE;
+    const bs = TILE * 2;
+    if (aabb(bullet, { x: bx, y: by, w: bs, h: bs })) {
+      state.base.alive = false;
+      return true;
+    }
+  }
+
+  // Тайлы
+  const x0 = Math.floor(bullet.x / TILE);
+  const y0 = Math.floor(bullet.y / TILE);
+  const x1 = Math.floor((bullet.x + bullet.w - 1) / TILE);
+  const y1 = Math.floor((bullet.y + bullet.h - 1) / TILE);
+
+  const hitX = bullet.x + bullet.w / 2;
+  const hitY = bullet.y + bullet.h / 2;
+
+  for (let cy = y0; cy <= y1; cy++) {
+    for (let cx = x0; cx <= x1; cx++) {
+      if (cx < 0 || cx >= GRID || cy < 0 || cy >= GRID) return true;
+      const t = state.map[cy][cx];
+      if (!t) continue;
+
+      if (t.type === 'brick') {
+        hitBrick(cx, cy, hitX, hitY);
+        return true;
+      }
+      if (t.type === 'steel') {
+        return true;
+      }
+      // water / trees — пролетает
+    }
+  }
+
+  return false;
+}
+
+function updateBullets(dt) {
+  const alive = [];
+  for (const b of state.bullets) {
+    b.x += b.dx * b.speed * dt;
+    b.y += b.dy * b.speed * dt;
+
+    if (bulletHitWorld(b)) {
+      // пуля погибла
+      continue;
+    }
+    alive.push(b);
+  }
+  state.bullets = alive;
+}
+
+// ---------------------------------------------------------------------
+// UPDATE
+// ---------------------------------------------------------------------
+function update(dtMs) {
+  const dt = dtMs / 1000;
+  updatePlayer(dt);
+  updateBullets(dt);
+}
+
+// ---------------------------------------------------------------------
+// RENDER — тайлы (без изменений с Шага 2)
+// ---------------------------------------------------------------------
 function drawField() {
   ctx.fillStyle = CONFIG.PALETTE.bg;
   ctx.fillRect(0, 0, W, W);
@@ -209,25 +504,17 @@ function drawField() {
     ctx.lineWidth = 1;
     for (let i = 0; i <= CONFIG.GRID; i++) {
       const p = i * CONFIG.TILE + 0.5;
-      ctx.beginPath();
-      ctx.moveTo(p, 0); ctx.lineTo(p, W);
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.moveTo(0, p); ctx.lineTo(W, p);
-      ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(p, 0); ctx.lineTo(p, W); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0, p); ctx.lineTo(W, p); ctx.stroke();
     }
   }
 }
 
-// --- Кирпич ---
 function drawBrickSub(sx, sy, size) {
   const P = CONFIG.PALETTE;
-
-  // Фон-шов
   ctx.fillStyle = P.brickDark;
   ctx.fillRect(sx, sy, size, size);
 
-  // Светлый верхний блок
   const pad = 1;
   const w = size - pad * 2;
   const h = size - pad * 2;
@@ -235,11 +522,9 @@ function drawBrickSub(sx, sy, size) {
   ctx.fillStyle = P.brick;
   ctx.fillRect(sx + pad, sy + pad, w, h);
 
-  // Верхний блик
   ctx.fillStyle = P.brickLight;
   ctx.fillRect(sx + pad, sy + pad, w, 2);
 
-  // Горизонтальный шов посередине
   ctx.fillStyle = P.brickDark;
   ctx.fillRect(sx, sy + size / 2 - 1, size, 2);
 }
@@ -250,102 +535,77 @@ function drawBrick(x, y, sub) {
   const py = y * TILE;
   const half = TILE / 2;
 
-  // 4 подъячейки: 0=TL, 1=TR, 2=BL, 3=BR
   const positions = [
-    [px,        py       ], // TL
-    [px + half, py       ], // TR
-    [px,        py + half], // BL
-    [px + half, py + half], // BR
+    [px,        py       ],
+    [px + half, py       ],
+    [px,        py + half],
+    [px + half, py + half],
   ];
 
   for (let i = 0; i < 4; i++) {
-    if (sub[i]) {
-      drawBrickSub(positions[i][0], positions[i][1], half);
-    }
+    if (sub[i]) drawBrickSub(positions[i][0], positions[i][1], half);
   }
 }
 
-// --- Сталь ---
 function drawSteel(x, y) {
   const { TILE, PALETTE: P } = CONFIG;
   const px = x * TILE;
   const py = y * TILE;
-
-  // Фон
-  ctx.fillStyle = P.steelDark;
-  ctx.fillRect(px, py, TILE, TILE);
-
-  // Металлический блок (2×2 подблока с бликом)
   const pad = 1;
   const s = TILE / 2;
+
+  ctx.fillStyle = P.steelDark;
+  ctx.fillRect(px, py, TILE, TILE);
 
   for (let i = 0; i < 4; i++) {
     const dx = (i % 2) * s;
     const dy = Math.floor(i / 2) * s;
 
-    // Основной блок
     ctx.fillStyle = P.steel;
     ctx.fillRect(px + dx + pad, py + dy + pad, s - pad * 2, s - pad * 2);
 
-    // Верхний блик
     ctx.fillStyle = P.steelLight;
     ctx.fillRect(px + dx + pad, py + dy + pad, s - pad * 2, 2);
-
-    // Левый блик
     ctx.fillRect(px + dx + pad, py + dy + pad, 2, s - pad * 2);
 
-    // Нижняя тень
     ctx.fillStyle = P.steelDark;
     ctx.fillRect(px + dx + pad, py + dy + s - pad - 2, s - pad * 2, 2);
   }
 }
 
-// --- Вода ---
 let waterPhase = 0;
 function drawWater(x, y) {
   const { TILE, PALETTE: P } = CONFIG;
   const px = x * TILE;
   const py = y * TILE;
 
-  // Фон
   ctx.fillStyle = P.water;
   ctx.fillRect(px, py, TILE, TILE);
 
-  // Волны — 3 горизонтальные полосы, фаза сдвигается
   const phase = Math.floor(waterPhase);
-  const waveColor = P.waterLight;
-  const deepColor = P.waterDeep;
 
-  ctx.fillStyle = deepColor;
+  ctx.fillStyle = P.waterDeep;
   ctx.fillRect(px, py + TILE / 2 - 1, TILE, 2);
 
-  ctx.fillStyle = waveColor;
-  // Верхняя волна
+  ctx.fillStyle = P.waterLight;
   const y1 = py + 6 + (phase % 2 === 0 ? 0 : 2);
   ctx.fillRect(px + 4, y1, TILE - 8, 2);
-
-  // Нижняя волна
   const y2 = py + TILE - 8 - (phase % 2 === 0 ? 0 : 2);
   ctx.fillRect(px + 4, y2, TILE - 8, 2);
 
-  // Блики
   ctx.fillStyle = 'rgba(255, 255, 255, 0.15)';
   ctx.fillRect(px + 6, y1 - 2, 4, 1);
   ctx.fillRect(px + TILE - 10, y2 - 2, 4, 1);
 }
 
-// --- Кусты ---
 function drawTrees(x, y) {
   const { TILE, PALETTE: P } = CONFIG;
   const px = x * TILE;
   const py = y * TILE;
+  const R = TILE / 7;
 
-  // Фон
   ctx.fillStyle = P.treesDark;
   ctx.fillRect(px, py, TILE, TILE);
-
-  // Кластеры листвы — маленькие круги
-  const R = TILE / 7;
 
   const clusters = [
     [px + TILE * 0.25, py + TILE * 0.30, R * 1.3],
@@ -354,7 +614,6 @@ function drawTrees(x, y) {
     [px + TILE * 0.75, py + TILE * 0.72, R * 1.15],
   ];
 
-  // Тёмный слой
   ctx.fillStyle = P.trees;
   for (const [cx, cy, r] of clusters) {
     ctx.beginPath();
@@ -362,7 +621,6 @@ function drawTrees(x, y) {
     ctx.fill();
   }
 
-  // Светлые пятнышки
   ctx.fillStyle = P.treesLight;
   for (const [cx, cy, r] of clusters) {
     ctx.beginPath();
@@ -371,20 +629,42 @@ function drawTrees(x, y) {
   }
 }
 
-// --- База 2×2 ---
 function drawBase() {
-  if (!state.base || !state.base.alive) return;
-
+  if (!state.base) return;
   const { TILE, PALETTE: P } = CONFIG;
   const px = state.base.x * TILE;
   const py = state.base.y * TILE;
   const size = TILE * 2;
 
-  // Фон базы
+  if (!state.base.alive) {
+    // Уничтоженная база — обломки
+    ctx.fillStyle = P.baseBg;
+    ctx.fillRect(px, py, size, size);
+
+    ctx.strokeStyle = P.baseDark;
+    ctx.lineWidth = 2;
+    ctx.strokeRect(px + 1, py + 1, size - 2, size - 2);
+
+    // Обломки
+    ctx.fillStyle = '#3a1a10';
+    for (let i = 0; i < 6; i++) {
+      const rx = px + 4 + Math.random() * (size - 16);
+      const ry = py + 4 + Math.random() * (size - 16);
+      ctx.fillRect(rx, ry, 4 + Math.random() * 6, 3 + Math.random() * 5);
+    }
+
+    // Дым
+    ctx.fillStyle = 'rgba(120, 120, 120, 0.4)';
+    ctx.beginPath();
+    ctx.arc(px + size * 0.4, py + size * 0.35, 8, 0, Math.PI * 2);
+    ctx.arc(px + size * 0.65, py + size * 0.55, 6, 0, Math.PI * 2);
+    ctx.fill();
+    return;
+  }
+
   ctx.fillStyle = P.baseBg;
   ctx.fillRect(px, py, size, size);
 
-  // Двойная рамка
   ctx.strokeStyle = P.baseDark;
   ctx.lineWidth = 2;
   ctx.strokeRect(px + 1, py + 1, size - 2, size - 2);
@@ -393,7 +673,6 @@ function drawBase() {
   ctx.lineWidth = 1.5;
   ctx.strokeRect(px + 3.5, py + 3.5, size - 7, size - 7);
 
-  // Орёл 🦅
   ctx.save();
   ctx.font = `${size * 0.72}px serif`;
   ctx.textAlign = 'center';
@@ -404,7 +683,6 @@ function drawBase() {
   ctx.restore();
 }
 
-// Диспетчер тайла
 function drawTile(tile, x, y) {
   if (!tile) return;
   switch (tile.type) {
@@ -415,33 +693,104 @@ function drawTile(tile, x, y) {
   }
 }
 
-// --- Полный кадр ---
+// ---------------------------------------------------------------------
+// RENDER — танк и пули
+// ---------------------------------------------------------------------
+function drawPlayerTank(t) {
+  const { TILE, PALETTE: P } = CONFIG;
+  const cx = t.x + t.w / 2;
+  const cy = t.y + t.h / 2;
+
+  ctx.save();
+  ctx.translate(cx, cy);
+
+  // Поворот по направлению (базово рисуем "вверх")
+  let angle = 0;
+  if (t.dir === 'right') angle = Math.PI / 2;
+  else if (t.dir === 'down') angle = Math.PI;
+  else if (t.dir === 'left') angle = -Math.PI / 2;
+  ctx.rotate(angle);
+
+  const s = TILE;
+  const half = s / 2;
+
+  // Гусеницы (слева и справа)
+  ctx.fillStyle = P.playerTrack;
+  ctx.fillRect(-half, -half, 5, s);
+  ctx.fillRect(half - 5, -half, 5, s);
+
+  // Траки — полоски
+  ctx.fillStyle = P.playerTrackLight;
+  for (let y = -half + 2; y < half - 1; y += 5) {
+    ctx.fillRect(-half + 1, y, 3, 2);
+    ctx.fillRect(half - 4, y, 3, 2);
+  }
+
+  // Корпус
+  ctx.fillStyle = P.playerBody;
+  ctx.fillRect(-half + 5, -half + 2, s - 10, s - 4);
+
+  // Светлый блик корпуса
+  ctx.fillStyle = P.playerBodyLight;
+  ctx.fillRect(-half + 5, -half + 2, s - 10, 3);
+
+  // Башня
+  ctx.fillStyle = P.playerTurret;
+  ctx.fillRect(-7, -5, 14, 12);
+
+  // Центр башни — блик
+  ctx.fillStyle = P.playerBodyLight;
+  ctx.fillRect(-5, -3, 10, 3);
+
+  // Ствол
+  ctx.fillStyle = P.playerBarrel;
+  ctx.fillRect(-2, -half - 2, 4, 9);
+
+  ctx.restore();
+}
+
+function drawBullet(b) {
+  const P = CONFIG.PALETTE;
+  ctx.save();
+  ctx.shadowColor = P.bulletGlow;
+  ctx.shadowBlur = 8;
+  ctx.fillStyle = P.bullet;
+  ctx.fillRect(b.x, b.y, b.w, b.h);
+  // блик
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(b.x + 1, b.y + 1, 2, 2);
+  ctx.restore();
+}
+
+// ---------------------------------------------------------------------
+// RENDER — кадр
+// ---------------------------------------------------------------------
 function render() {
   drawField();
 
-  // Слой 1: земля (кирпич, сталь, вода) — БЕЗ кустов
+  // 1. Земля (без кустов)
   if (state.map) {
     for (let y = 0; y < CONFIG.GRID; y++) {
       for (let x = 0; x < CONFIG.GRID; x++) {
         const t = state.map[y][x];
-        if (t && t.type !== 'trees') {
-          drawTile(t, x, y);
-        }
+        if (t && t.type !== 'trees') drawTile(t, x, y);
       }
     }
   }
 
-  // Слой 2: база
+  // 2. База
   drawBase();
 
-  // Слой 3: кусты (поверх земли и базы — но под танками в след. шагах)
+  // 3. Игрок и пули (между землёй и кустами — танк прячется под кустами)
+  if (state.player && state.player.alive) drawPlayerTank(state.player);
+  for (const b of state.bullets) drawBullet(b);
+
+  // 4. Кусты — поверх танка (визуальное «прятание»)
   if (state.map) {
     for (let y = 0; y < CONFIG.GRID; y++) {
       for (let x = 0; x < CONFIG.GRID; x++) {
         const t = state.map[y][x];
-        if (t && t.type === 'trees') {
-          drawTrees(x, y);
-        }
+        if (t && t.type === 'trees') drawTrees(x, y);
       }
     }
   }
@@ -483,26 +832,16 @@ function loop(time) {
 
   if (!state.isPaused) {
     state.accumulator += delta;
-
     while (state.accumulator >= CONFIG.STEP_MS) {
       update(CONFIG.STEP_MS);
       state.accumulator -= CONFIG.STEP_MS;
     }
-
-    // Фаза воды для анимации — не зависит от фикс. шага
     waterPhase = (waterPhase + delta / 220) % 4;
   }
 
   render();
 
   state.animId = requestAnimationFrame(loop);
-}
-
-// ---------------------------------------------------------------------
-// UPDATE
-// ---------------------------------------------------------------------
-function update(_dt) {
-  // Логика танков, пуль, ИИ — в следующих шагах
 }
 
 // ---------------------------------------------------------------------
@@ -515,9 +854,10 @@ function startGame() {
   state.enemiesTotal = 0;
   state.enemiesKilled = 0;
   state.build = { speed: 1, armor: 1, reload: 1, damage: 1 };
+  state.bullets = [];
 
-  // 🆕 Загрузка карты
   loadLevel(state.level - 1);
+  spawnPlayer();
 
   state.lastTime = 0;
   state.accumulator = 0;
@@ -561,19 +901,6 @@ function togglePause() {
 }
 
 // ---------------------------------------------------------------------
-// INPUT
-// ---------------------------------------------------------------------
-document.addEventListener('keydown', (e) => {
-  if (e.code === 'Space' || e.key === ' ' ||
-      e.key === 'p' || e.key === 'P' || e.key === 'з' || e.key === 'З') {
-    e.preventDefault();
-    if (!state.isRunning) startGame();
-    else togglePause();
-    return;
-  }
-});
-
-// ---------------------------------------------------------------------
 // BUTTONS
 // ---------------------------------------------------------------------
 function handleStartBtn(e) {
@@ -590,9 +917,8 @@ startBtn.addEventListener('touchend', handleStartBtn, { passive: false });
 // INIT
 // ---------------------------------------------------------------------
 (function init() {
-  // Показываем карту сразу — за оверлеем, чтобы было видно до старта
   loadLevel(0);
-
+  spawnPlayer();
   updateHUD();
   render();
 })();
