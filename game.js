@@ -288,6 +288,9 @@ function tankCollidesMap(x, y, w, h) {
 // ---------------------------------------------------------------------
 // TANK — движение игрока
 // ---------------------------------------------------------------------
+f// ---------------------------------------------------------------------
+// TANK — движение игрока
+// ---------------------------------------------------------------------
 function updatePlayer(dt) {
   const p = state.player;
   if (!p || !p.alive) return;
@@ -299,41 +302,47 @@ function updatePlayer(dt) {
   else if (keysDown.has('ArrowUp') || keysDown.has('KeyW')) ndir = 'up';
   else if (keysDown.has('ArrowDown') || keysDown.has('KeyS')) ndir = 'down';
 
-  if (ndir) {
-    p.dir = ndir;
-    p.moving = true;
-  } else {
+  if (!ndir) {
     p.moving = false;
+    return;
   }
 
-  if (!p.moving) return;
+  p.moving = true;
+  p.dir = ndir;
 
   const { TILE } = CONFIG;
 
-  // Snap перпендикулярной оси к сетке (плавное выравнивание)
+  // 1) СНАП перпендикулярной оси к сетке.
+  //    Пока не выровнены — основную ось НЕ двигаем (иначе «прыжок»).
   if (p.dir === 'left' || p.dir === 'right') {
     const target = Math.round(p.y / TILE) * TILE;
     const diff = target - p.y;
+
     if (Math.abs(diff) > 0.5) {
       const step = Math.sign(diff) * Math.min(CONFIG.PLAYER.SNAP_SPEED * dt, Math.abs(diff));
       const ny = p.y + step;
-      if (!tankCollidesMap(p.x, ny, p.w, p.h)) p.y = ny;
-    } else {
-      p.y = target;
+      if (!tankCollidesMap(p.x, ny, p.w, p.h)) {
+        p.y = ny;
+      }
+      return; // ← ключевая строка фикса
     }
+    p.y = target;
   } else {
     const target = Math.round(p.x / TILE) * TILE;
     const diff = target - p.x;
+
     if (Math.abs(diff) > 0.5) {
       const step = Math.sign(diff) * Math.min(CONFIG.PLAYER.SNAP_SPEED * dt, Math.abs(diff));
       const nx = p.x + step;
-      if (!tankCollidesMap(nx, p.y, p.w, p.h)) p.x = nx;
-    } else {
-      p.x = target;
+      if (!tankCollidesMap(nx, p.y, p.w, p.h)) {
+        p.x = nx;
+      }
+      return; // ← ключевая строка фикса
     }
+    p.x = target;
   }
 
-  // Основное движение
+  // 2) ОСНОВНОЕ движение (только когда выровнены)
   let dx = 0, dy = 0;
   if (p.dir === 'left') dx = -1;
   else if (p.dir === 'right') dx = 1;
