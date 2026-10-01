@@ -1,6 +1,6 @@
 // =====================================================================
 // 🎮 Battle City — Стальные коты
-// Step 3: игрок-танк, движение, стрельба
+// Step 3.1: фикс прыжка при повороте + разрушение кирпича половинами
 // =====================================================================
 
 // ---------------------------------------------------------------------
@@ -17,11 +17,11 @@ const CONFIG = {
 
   // Игрок
   PLAYER: {
-    SPEED: 90,          // px/сек
-    SNAP_SPEED: 200,    // скорость выравнивания к сетке
-    BULLET_SPEED: 280,  // px/сек
+    SPEED: 90,
+    SNAP_SPEED: 200,
+    BULLET_SPEED: 280,
     BULLET_SIZE: 6,
-    RELOAD_MS: 380,     // перезарядка между выстрелами
+    RELOAD_MS: 380,
   },
 
   PALETTE: {
@@ -48,7 +48,6 @@ const CONFIG = {
     baseDark:   '#7a5210',
     baseBg:     '#2a1a05',
 
-    // Танк игрока
     playerTrack:      '#5a2a4a',
     playerTrackLight: '#a04a7a',
     playerBody:       '#ff8fc8',
@@ -56,7 +55,6 @@ const CONFIG = {
     playerTurret:     '#c66ba0',
     playerBarrel:     '#ffffff',
 
-    // Пуля
     bullet:     '#ffd24a',
     bulletGlow: '#ff8fc8',
   },
@@ -137,7 +135,6 @@ const state = {
   map: null,
   base: null,
 
-  // 🆕
   player: null,
   bullets: [],
 };
@@ -196,7 +193,6 @@ function isBaseCell(x, y) {
 // ---------------------------------------------------------------------
 function spawnPlayer() {
   const { TILE } = CONFIG;
-  // Спавн в клетке (4, 15) — слева от базы
   state.player = {
     x: 4 * TILE,
     y: 15 * TILE,
@@ -217,7 +213,6 @@ function spawnPlayer() {
 const keysDown = new Set();
 
 document.addEventListener('keydown', (e) => {
-  // Служебные клавиши (пауза, старт, огонь) — до game over
   if (e.code === 'Space' || e.key === ' ') {
     e.preventDefault();
     if (!state.isRunning) {
@@ -236,7 +231,6 @@ document.addEventListener('keydown', (e) => {
     return;
   }
 
-  // Игровое движение
   keysDown.add(e.code);
 });
 
@@ -252,7 +246,6 @@ function aabb(a, b) {
          a.y < b.y + b.h && a.y + a.h > b.y;
 }
 
-// Блокирующие тайлы для танка: brick / steel / water + база
 function tankCollidesMap(x, y, w, h) {
   const { TILE, GRID } = CONFIG;
 
@@ -261,7 +254,6 @@ function tankCollidesMap(x, y, w, h) {
   const x1 = Math.floor((x + w - 1) / TILE);
   const y1 = Math.floor((y + h - 1) / TILE);
 
-  // Выход за поле — блок
   if (x0 < 0 || y0 < 0 || x1 >= GRID || y1 >= GRID) return true;
 
   for (let cy = y0; cy <= y1; cy++) {
@@ -274,7 +266,6 @@ function tankCollidesMap(x, y, w, h) {
     }
   }
 
-  // База
   if (state.base && state.base.alive) {
     const bx = state.base.x * TILE;
     const by = state.base.y * TILE;
@@ -286,10 +277,7 @@ function tankCollidesMap(x, y, w, h) {
 }
 
 // ---------------------------------------------------------------------
-// TANK — движение игрока
-// ---------------------------------------------------------------------
-f// ---------------------------------------------------------------------
-// TANK — движение игрока
+// TANK — движение игрока (ФИКС: снап перпендикуляра с return)
 // ---------------------------------------------------------------------
 function updatePlayer(dt) {
   const p = state.player;
@@ -313,7 +301,7 @@ function updatePlayer(dt) {
   const { TILE } = CONFIG;
 
   // 1) СНАП перпендикулярной оси к сетке.
-  //    Пока не выровнены — основную ось НЕ двигаем (иначе «прыжок»).
+  //    Пока не выровнены — основную ось НЕ двигаем.
   if (p.dir === 'left' || p.dir === 'right') {
     const target = Math.round(p.y / TILE) * TILE;
     const diff = target - p.y;
@@ -324,7 +312,7 @@ function updatePlayer(dt) {
       if (!tankCollidesMap(p.x, ny, p.w, p.h)) {
         p.y = ny;
       }
-      return; // ← ключевая строка фикса
+      return; // ← фикс прыжка
     }
     p.y = target;
   } else {
@@ -337,12 +325,12 @@ function updatePlayer(dt) {
       if (!tankCollidesMap(nx, p.y, p.w, p.h)) {
         p.x = nx;
       }
-      return; // ← ключевая строка фикса
+      return; // ← фикс прыжка
     }
     p.x = target;
   }
 
-  // 2) ОСНОВНОЕ движение (только когда выровнены)
+  // 2) ОСНОВНОЕ движение
   let dx = 0, dy = 0;
   if (p.dir === 'left') dx = -1;
   else if (p.dir === 'right') dx = 1;
@@ -367,7 +355,6 @@ function shootPlayer() {
   const p = state.player;
   if (!p || !p.alive) return;
 
-  // Одна пуля одновременно
   const hasBullet = state.bullets.some(b => b.owner === 'player');
   if (hasBullet) return;
 
@@ -384,13 +371,13 @@ function shootPlayer() {
 
   switch (p.dir) {
     case 'left':
-      dx = -1; bx = p.x - half;      by = cy - half; break;
+      dx = -1; bx = p.x - half;        by = cy - half; break;
     case 'right':
-      dx = 1;  bx = p.x + p.w - half; by = cy - half; break;
+      dx = 1;  bx = p.x + p.w - half;  by = cy - half; break;
     case 'up':
-      dy = -1; bx = cx - half; by = p.y - half; break;
+      dy = -1; bx = cx - half;         by = p.y - half; break;
     case 'down':
-      dy = 1;  bx = cx - half; by = p.y + p.h - half; break;
+      dy = 1;  bx = cx - half;         by = p.y + p.h - half; break;
   }
 
   state.bullets.push({
@@ -402,42 +389,48 @@ function shootPlayer() {
   });
 }
 
-// Попадание по кирпичу: определить подъячейку и разрушить
-function hitBrick(cx, cy, hitX, hitY) {
-  const { TILE } = CONFIG;
+// ---------------------------------------------------------------------
+// BULLET × BRICK — ФИКС: рушим половину в направлении пули
+//   sub[0]=TL, sub[1]=TR, sub[2]=BL, sub[3]=BR
+// ---------------------------------------------------------------------
+function hitBrick(cx, cy, bullet) {
   const tile = state.map[cy][cx];
-  if (!tile || tile.type !== 'brick') return false;
+  if (!tile || tile.type !== 'brick') return;
 
-  const px = cx * TILE;
-  const py = cy * TILE;
-  const half = TILE / 2;
+  let toBreak = [];
 
-  const lx = hitX - px;
-  const ly = hitY - py;
+  if (bullet.dy < 0) {
+    // Летит вверх → рушим НИЖНИЙ ряд
+    toBreak = [2, 3];
+  } else if (bullet.dy > 0) {
+    // Летит вниз → рушим ВЕРХНИЙ ряд
+    toBreak = [0, 1];
+  } else if (bullet.dx < 0) {
+    // Летит влево → рушим ПРАВЫЙ столбец
+    toBreak = [1, 3];
+  } else if (bullet.dx > 0) {
+    // Летит вправо → рушим ЛЕВЫЙ столбец
+    toBreak = [0, 2];
+  }
 
-  const col = lx < half ? 0 : 1;
-  const row = ly < half ? 0 : 1;
-  const idx = row * 2 + col;
-
-  tile.sub[idx] = 0;
+  for (const i of toBreak) {
+    tile.sub[i] = 0;
+  }
 
   if (tile.sub.every(s => s === 0)) {
     state.map[cy][cx] = null;
   }
-  return true;
 }
 
-// Проверка попадания пули в карту/базу. Возвращает true если пуля остановилась.
+// Проверка попадания пули. Возвращает true если пуля остановилась.
 function bulletHitWorld(bullet) {
   const { TILE, GRID } = CONFIG;
 
-  // Выход за поле
   if (bullet.x < 0 || bullet.y < 0 ||
       bullet.x + bullet.w > W || bullet.y + bullet.h > W) {
     return true;
   }
 
-  // База
   if (state.base && state.base.alive) {
     const bx = state.base.x * TILE;
     const by = state.base.y * TILE;
@@ -448,14 +441,10 @@ function bulletHitWorld(bullet) {
     }
   }
 
-  // Тайлы
   const x0 = Math.floor(bullet.x / TILE);
   const y0 = Math.floor(bullet.y / TILE);
   const x1 = Math.floor((bullet.x + bullet.w - 1) / TILE);
   const y1 = Math.floor((bullet.y + bullet.h - 1) / TILE);
-
-  const hitX = bullet.x + bullet.w / 2;
-  const hitY = bullet.y + bullet.h / 2;
 
   for (let cy = y0; cy <= y1; cy++) {
     for (let cx = x0; cx <= x1; cx++) {
@@ -464,7 +453,7 @@ function bulletHitWorld(bullet) {
       if (!t) continue;
 
       if (t.type === 'brick') {
-        hitBrick(cx, cy, hitX, hitY);
+        hitBrick(cx, cy, bullet);
         return true;
       }
       if (t.type === 'steel') {
@@ -483,10 +472,7 @@ function updateBullets(dt) {
     b.x += b.dx * b.speed * dt;
     b.y += b.dy * b.speed * dt;
 
-    if (bulletHitWorld(b)) {
-      // пуля погибла
-      continue;
-    }
+    if (bulletHitWorld(b)) continue;
     alive.push(b);
   }
   state.bullets = alive;
@@ -502,7 +488,7 @@ function update(dtMs) {
 }
 
 // ---------------------------------------------------------------------
-// RENDER — тайлы (без изменений с Шага 2)
+// RENDER — тайлы
 // ---------------------------------------------------------------------
 function drawField() {
   ctx.fillStyle = CONFIG.PALETTE.bg;
@@ -646,7 +632,6 @@ function drawBase() {
   const size = TILE * 2;
 
   if (!state.base.alive) {
-    // Уничтоженная база — обломки
     ctx.fillStyle = P.baseBg;
     ctx.fillRect(px, py, size, size);
 
@@ -654,7 +639,6 @@ function drawBase() {
     ctx.lineWidth = 2;
     ctx.strokeRect(px + 1, py + 1, size - 2, size - 2);
 
-    // Обломки
     ctx.fillStyle = '#3a1a10';
     for (let i = 0; i < 6; i++) {
       const rx = px + 4 + Math.random() * (size - 16);
@@ -662,7 +646,6 @@ function drawBase() {
       ctx.fillRect(rx, ry, 4 + Math.random() * 6, 3 + Math.random() * 5);
     }
 
-    // Дым
     ctx.fillStyle = 'rgba(120, 120, 120, 0.4)';
     ctx.beginPath();
     ctx.arc(px + size * 0.4, py + size * 0.35, 8, 0, Math.PI * 2);
@@ -713,7 +696,6 @@ function drawPlayerTank(t) {
   ctx.save();
   ctx.translate(cx, cy);
 
-  // Поворот по направлению (базово рисуем "вверх")
   let angle = 0;
   if (t.dir === 'right') angle = Math.PI / 2;
   else if (t.dir === 'down') angle = Math.PI;
@@ -723,12 +705,11 @@ function drawPlayerTank(t) {
   const s = TILE;
   const half = s / 2;
 
-  // Гусеницы (слева и справа)
+  // Гусеницы
   ctx.fillStyle = P.playerTrack;
   ctx.fillRect(-half, -half, 5, s);
   ctx.fillRect(half - 5, -half, 5, s);
 
-  // Траки — полоски
   ctx.fillStyle = P.playerTrackLight;
   for (let y = -half + 2; y < half - 1; y += 5) {
     ctx.fillRect(-half + 1, y, 3, 2);
@@ -739,7 +720,6 @@ function drawPlayerTank(t) {
   ctx.fillStyle = P.playerBody;
   ctx.fillRect(-half + 5, -half + 2, s - 10, s - 4);
 
-  // Светлый блик корпуса
   ctx.fillStyle = P.playerBodyLight;
   ctx.fillRect(-half + 5, -half + 2, s - 10, 3);
 
@@ -747,7 +727,6 @@ function drawPlayerTank(t) {
   ctx.fillStyle = P.playerTurret;
   ctx.fillRect(-7, -5, 14, 12);
 
-  // Центр башни — блик
   ctx.fillStyle = P.playerBodyLight;
   ctx.fillRect(-5, -3, 10, 3);
 
@@ -765,7 +744,6 @@ function drawBullet(b) {
   ctx.shadowBlur = 8;
   ctx.fillStyle = P.bullet;
   ctx.fillRect(b.x, b.y, b.w, b.h);
-  // блик
   ctx.fillStyle = '#fff';
   ctx.fillRect(b.x + 1, b.y + 1, 2, 2);
   ctx.restore();
@@ -790,11 +768,11 @@ function render() {
   // 2. База
   drawBase();
 
-  // 3. Игрок и пули (между землёй и кустами — танк прячется под кустами)
+  // 3. Игрок и пули
   if (state.player && state.player.alive) drawPlayerTank(state.player);
   for (const b of state.bullets) drawBullet(b);
 
-  // 4. Кусты — поверх танка (визуальное «прятание»)
+  // 4. Кусты поверх танка
   if (state.map) {
     for (let y = 0; y < CONFIG.GRID; y++) {
       for (let x = 0; x < CONFIG.GRID; x++) {
