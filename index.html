@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="theme-color" content="#0d0a14">
+  <title>🎮 Battle City — Стальные коты</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="game-wrapper">
+    <div class="game-panel">
+      <h1>🎮 Стальные коты</h1>
+
+      <div class="hud">
+        <div class="hud-item">
+          <span class="label">Уровень</span>
+          <span id="hud-level">1</span>
+        </div>
+        <div class="hud-item">
+          <span class="label">Очки</span>
+          <span id="hud-score">0</span>
+        </div>
+        <div class="hud-item">
+          <span class="label">Жизни</span>
+          <span id="hud-lives" class="lives">❤❤❤</span>
+        </div>
+        <div class="hud-item hud-enemies">
+          <span class="label">Враги</span>
+          <span id="hud-enemies">0 / 0</span>
+        </div>
+      </div>
+
+      <div class="build-panel">
+        <div class="build-title">Танк</div>
+        <div class="build-row">
+          <span class="build-label">⚡ Скорость</span>
+          <span class="build-value" id="build-speed">1</span>
+        </div>
+        <div class="build-row">
+          <span class="build-label">🛡 Броня</span>
+          <span class="build-value" id="build-armor">1</span>
+        </div>
+        <div class="build-row">
+          <span class="build-label">🔥 Перезарядка</span>
+          <span class="build-value" id="build-reload">1</span>
+        </div>
+        <div class="build-row">
+          <span class="build-label">💥 Урон</span>
+          <span class="build-value" id="build-damage">1</span>
+        </div>
+      </div>
+
+      <div class="controls-hint">
+        <p class="hint-desktop">← ↑ ↓ → или WASD — движение</p>
+        <p class="hint-desktop">Space — огонь, P — пауза</p>
+        <p class="hint-mobile">Джойстик + кнопка огня</p>
+      </div>
+    </div>
+
+    <div class="board-wrapper" id="board-wrapper">
+      <!-- 🆕 17 × 28 = 476 -->
+      <canvas id="game" width="476" height="476"></canvas>
+
+      <div id="overlay" class="overlay">
+        <div class="overlay-content">
+          <h2 id="overlay-title">🎮 Стальные коты</h2>
+          <p id="overlay-text">Защити базу от вражеских танков</p>
+          <button id="start-btn" type="button">Играть</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="game.js"></script>
+</body>
+</html>

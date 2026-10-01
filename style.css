@@ -1,0 +1,290 @@
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  overscroll-behavior: none;
+  touch-action: manipulation;
+}
+
+body {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background:
+    radial-gradient(circle at 20% 100%, rgba(120, 80, 220, 0.18), transparent 50%),
+    radial-gradient(circle at 80% 0%,   rgba(255, 100, 180, 0.14), transparent 50%),
+    radial-gradient(circle at top, #1a1425, #0a0612 70%);
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  color: #e8dff5;
+  padding: 20px;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  overflow-x: hidden;
+}
+
+.game-wrapper {
+  display: flex;
+  gap: 24px;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+/* ============ Панель слева ============ */
+.game-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 200px;
+}
+
+h1 {
+  font-size: 20px;
+  text-align: center;
+  color: #ffb7e0;
+  text-shadow: 0 0 14px rgba(255, 183, 224, 0.55);
+  letter-spacing: 0.5px;
+}
+
+.hud {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: rgba(255, 255, 255, 0.04);
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 183, 224, 0.2);
+}
+
+.hud-item {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  align-items: center;
+}
+
+.hud-item.hud-enemies {
+  padding-top: 6px;
+  border-top: 1px dashed rgba(255, 183, 224, 0.15);
+}
+
+.label { color: #b79fd0; }
+
+.hud-item span:last-child {
+  font-weight: 700;
+  color: #ffd6f0;
+  font-variant-numeric: tabular-nums;
+}
+
+.lives {
+  color: #ff5f7a !important;
+  letter-spacing: 2px;
+  text-shadow: 0 0 10px rgba(255, 95, 122, 0.6);
+}
+
+/* ============ Панель билда танка ============ */
+.build-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: rgba(255, 255, 255, 0.04);
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 183, 224, 0.2);
+}
+
+.build-title {
+  font-size: 10px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: #8a7aa3;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.build-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  color: #d9c7ec;
+}
+
+.build-value {
+  font-weight: 700;
+  color: #ffd88f;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ============ Подсказки ============ */
+.controls-hint {
+  font-size: 12px;
+  color: #8a7aa3;
+  line-height: 1.7;
+  text-align: center;
+}
+
+.hint-mobile { display: none; }
+
+/* ============ Поле ============ */
+.board-wrapper {
+  position: relative;
+  touch-action: none;
+}
+
+#game {
+  display: block;
+  background: #0a0612;
+  border-radius: 8px;
+  border: 2px solid rgba(255, 183, 224, 0.35);
+  box-shadow:
+    0 0 40px rgba(255, 183, 224, 0.15),
+    0 0 80px rgba(120, 80, 220, 0.15),
+    inset 0 0 40px rgba(0, 0, 0, 0.6);
+  max-width: 100%;
+  height: auto;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}
+
+/* ============ Оверлей ============ */
+.overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(10, 6, 18, 0.92);
+  border-radius: 8px;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  transition: opacity 0.3s;
+  z-index: 5;
+}
+
+.overlay.hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.overlay-content {
+  text-align: center;
+  padding: 20px;
+  position: relative;
+  z-index: 6;
+  max-width: 100%;
+}
+
+.overlay-content h2 {
+  color: #ffb7e0;
+  margin-bottom: 12px;
+  font-size: 22px;
+  line-height: 1.2;
+  text-shadow: 0 0 16px rgba(255, 183, 224, 0.5);
+}
+
+.overlay-content p {
+  color: #c7b0dd;
+  margin-bottom: 20px;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+#start-btn {
+  background: linear-gradient(135deg, #ff8fc8, #b87cff);
+  color: #1a1024;
+  border: none;
+  padding: 14px 36px;
+  font-size: 16px;
+  font-weight: 700;
+  border-radius: 30px;
+  cursor: pointer;
+  transition: transform 0.15s, box-shadow 0.15s;
+  box-shadow: 0 4px 20px rgba(255, 143, 200, 0.4);
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  position: relative;
+  z-index: 10;
+  user-select: none;
+}
+
+#start-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 26px rgba(255, 143, 200, 0.6);
+}
+
+#start-btn:active { transform: scale(0.96); }
+
+/* ============ Мобильная версия ============ */
+@media (max-width: 720px) {
+  body {
+    padding: 10px;
+    align-items: flex-start;
+  }
+
+  .game-wrapper {
+    flex-direction: column;
+    gap: 12px;
+    align-items: center;
+    width: 100%;
+  }
+
+  .game-panel {
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px;
+    min-width: auto;
+    width: 100%;
+  }
+
+  h1 {
+    font-size: 16px;
+    width: 100%;
+    margin-bottom: 2px;
+  }
+
+  .hud {
+    flex-direction: row;
+    gap: 12px;
+    padding: 8px 12px;
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .hud-item {
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    font-size: 10px;
+  }
+
+  .hud-item span:last-child {
+    font-size: 14px;
+  }
+
+  .hud-item.hud-enemies {
+    border-top: none;
+    padding-top: 0;
+  }
+
+  .build-panel {
+    display: none;
+  }
+
+  .controls-hint {
+    width: 100%;
+    margin-top: 2px;
+    font-size: 11px;
+  }
+
+  .hint-desktop { display: none; }
+  .hint-mobile { display: block; }
+
+  /* 🆕 ограничение под новое поле 476×476 */
+  #game {
+    width: min(92vw, 92vh, 476px);
+    height: min(92vw, 92vh, 476px);
+  }
+}
