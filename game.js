@@ -390,32 +390,41 @@ function shootPlayer() {
 }
 
 // ---------------------------------------------------------------------
-// BULLET × BRICK — ФИКС: рушим половину в направлении пули
+// BULLET × BRICK — рушим ближнюю половину, если её нет — дальнюю
 //   sub[0]=TL, sub[1]=TR, sub[2]=BL, sub[3]=BR
 // ---------------------------------------------------------------------
 function hitBrick(cx, cy, bullet) {
   const tile = state.map[cy][cx];
   if (!tile || tile.type !== 'brick') return;
 
-  let toBreak = [];
+  // Ближняя — та половина, в которую пуля влетает первой
+  // Дальняя — противоположная
+  let near = [], far = [];
 
   if (bullet.dy < 0) {
-    // Летит вверх → рушим НИЖНИЙ ряд
-    toBreak = [2, 3];
+    // Пуля летит вверх → влетает снизу
+    near = [2, 3];   // BL, BR
+    far  = [0, 1];   // TL, TR
   } else if (bullet.dy > 0) {
-    // Летит вниз → рушим ВЕРХНИЙ ряд
-    toBreak = [0, 1];
+    // Летит вниз → влетает сверху
+    near = [0, 1];
+    far  = [2, 3];
   } else if (bullet.dx < 0) {
-    // Летит влево → рушим ПРАВЫЙ столбец
-    toBreak = [1, 3];
+    // Летит влево → влетает справа
+    near = [1, 3];   // TR, BR
+    far  = [0, 2];   // TL, BL
   } else if (bullet.dx > 0) {
-    // Летит вправо → рушим ЛЕВЫЙ столбец
-    toBreak = [0, 2];
+    // Летит вправо → влетает слева
+    near = [0, 2];
+    far  = [1, 3];
   }
 
-  for (const i of toBreak) {
-    tile.sub[i] = 0;
-  }
+  // Если в ближней половине ещё что-то есть — рушим её,
+  // иначе рушим дальнюю (значит ближняя уже разбита прошлым выстрелом)
+  const nearAlive = near.some(i => tile.sub[i]);
+  const toBreak = nearAlive ? near : far;
+
+  for (const i of toBreak) tile.sub[i] = 0;
 
   if (tile.sub.every(s => s === 0)) {
     state.map[cy][cx] = null;
