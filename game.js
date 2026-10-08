@@ -1,6 +1,6 @@
 // =====================================================================
 // 🎮 Battle City — Стальные коты
-// Прокачка + мобильное управление. Редактор удалён.
+// Прокачка + мобильное управление. Усиленная защита базы.
 // =====================================================================
 
 // ---------------------------------------------------------------------
@@ -211,7 +211,7 @@ function getPlayerMaxHp() { return state.build.armor; }
 function getPlayerDamageLevel() { return state.build.damage; }
 
 // ---------------------------------------------------------------------
-// MAP — генерация
+// MAP — генерация с усиленной защитой базы
 // ---------------------------------------------------------------------
 function generateRandomMap() {
   const G = CONFIG.GRID;
@@ -221,25 +221,40 @@ function generateRandomMap() {
   const baseX = 7;
   const baseY = 15;
 
-  for (let x = 6; x <= 9; x++) map[14][x] = { type: 'brick', sub: [1, 1, 1, 1] };
+  // ========== УСИЛЕННАЯ ЗАЩИТА БАЗЫ ==========
+  // Двойной слой кирпича над базой
+  map[13][7] = { type: 'brick', sub: [1, 1, 1, 1] };
+  map[13][8] = { type: 'brick', sub: [1, 1, 1, 1] };
+
+  // Верхний ряд базы: центр — кирпич, боковые — СТАЛЬ
+  map[14][6] = { type: 'steel' };
+  map[14][7] = { type: 'brick', sub: [1, 1, 1, 1] };
+  map[14][8] = { type: 'brick', sub: [1, 1, 1, 1] };
+  map[14][9] = { type: 'steel' };
+
+  // Боковые стенки базы — СТАЛЬ (не пробить обычной пулей)
   for (let y = 15; y <= 16; y++) {
-    map[y][6] = { type: 'brick', sub: [1, 1, 1, 1] };
-    map[y][9] = { type: 'brick', sub: [1, 1, 1, 1] };
+    map[y][6] = { type: 'steel' };
+    map[y][9] = { type: 'steel' };
   }
 
+  // Очистить саму область базы 2×2
   for (let dy = 0; dy < 2; dy++)
     for (let dx = 0; dx < 2; dx++)
       map[baseY + dy][baseX + dx] = null;
 
+  // ========== КОРИДОРЫ ==========
   const horizontalCorridors = [1, 13];
-  const verticalCorridors = [8];
+  // Вертикальные коридоры — больше НЕ по центру, а по краям
+  const verticalCorridors = [3, 13];
 
   function isCorridor(x, y) {
     if (horizontalCorridors.includes(y)) return true;
-    if (verticalCorridors.includes(x) && y < 14) return true;
+    if (verticalCorridors.includes(x) && y < 8) return true;
     return false;
   }
 
+  // ========== КЛАСТЕРЫ ПРЕПЯТСТВИЙ ==========
   const clusterCount = 10 + Math.floor(Math.random() * 6);
   for (let i = 0; i < clusterCount; i++) {
     const r = Math.random();
@@ -258,7 +273,7 @@ function generateRandomMap() {
         const px = startX + dx;
         const py = startY + dy;
         if (px < 0 || px >= G || py < 0 || py >= G) continue;
-        if (py >= 14) continue;
+        if (py >= 13) continue;                     // не трогаем нижнюю часть
         if (isCorridor(px, py)) continue;
         if (map[py][px]) continue;
 
@@ -268,11 +283,12 @@ function generateRandomMap() {
     }
   }
 
+  // ========== ОДИНОЧНЫЕ ПРЕПЯТСТВИЯ ==========
   const singles = 10 + Math.floor(Math.random() * 8);
   for (let i = 0; i < singles; i++) {
     const px = 1 + Math.floor(Math.random() * (G - 2));
     const py = 2 + Math.floor(Math.random() * 11);
-    if (py >= 14) continue;
+    if (py >= 13) continue;
     if (isCorridor(px, py)) continue;
     if (map[py][px]) continue;
 
@@ -286,10 +302,12 @@ function generateRandomMap() {
     map[py][px] = tile;
   }
 
+  // ========== СПАВН-ТОЧКИ ==========
   for (const sp of SPAWN_POINTS) {
     if (sp.x >= 0 && sp.x < G && sp.y >= 0 && sp.y < G) map[sp.y][sp.x] = null;
   }
 
+  // ========== ЗОНА ИГРОКА (низ-слева) ==========
   for (let y = 14; y <= 16; y++) {
     for (let x = 0; x <= 5; x++) {
       map[y][x] = null;
