@@ -663,3 +663,32 @@ h1 {
     right: 68px !important;
   }
 }
+/* =====================================================================
+   🏛 СТРОКА «ТЕМА» В HUD
+   ===================================================================== */
+.hud-item.hud-theme {
+  padding-top: 6px;
+  border-top: 1px dashed rgba(255, 183, 224, 0.15);
+}
+
+.hud-item.hud-theme span:last-child {
+  color: #c7b0dd;
+  font-size: 12px;
+  font-style: italic;
+  font-weight: 600;
+  transition: color 0.6s ease;
+}
+
+@media (max-width: 900px) {
+  .hud-item.hud-theme {
+    flex-basis: 100%;
+    border-top: 1px dashed rgba(255, 183, 224, 0.15);
+    padding-top: 6px;
+    flex-direction: row;
+    gap: 6px;
+    justify-content: center;
+  }
+  .hud-item.hud-theme span:last-child {
+    font-size: 12px;
+  }
+}

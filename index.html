@@ -31,6 +31,10 @@
           <span class="label">Враги</span>
           <span id="hud-enemies">0 / 0</span>
         </div>
+        <div class="hud-item hud-theme">
+          <span class="label">Тема</span>
+          <span id="hud-theme">Летний сад</span>
+        </div>
       </div>
 
       <div class="build-panel">
@@ -59,7 +63,7 @@
 
       <div class="controls-hint">
         <p class="hint-desktop">← ↑ ↓ → или WASD — движение</p>
-        <p class="hint-desktop">Space — огонь, P — пауза</p>
+        <p class="hint-desktop">Space — огонь, P — пауза, M — звук</p>
         <p class="hint-mobile">Джойстик — движение, 🔥 — огонь</p>
       </div>
     </div>
@@ -77,13 +81,9 @@
     </div>
   </div>
 
-  <!-- Кнопка звука (видна всегда) -->
   <button id="sound-btn" class="sound-btn" type="button" aria-label="Звук">🔊</button>
-
-  <!-- Кнопка паузы (только на мобильном) -->
   <button id="mobile-pause-btn" class="mobile-pause-btn" type="button" aria-label="Пауза">⏸</button>
 
-  <!-- Мобильные контролы -->
   <div class="mobile-controls" id="mobile-controls">
     <div class="joystick" id="joystick">
       <div class="joystick-base">
@@ -95,7 +95,6 @@
     </button>
   </div>
 
-  <!-- Экран выбора апгрейда -->
   <div id="upgrade-overlay" class="upgrade-overlay hidden" role="dialog" aria-modal="true">
     <div class="upgrade-content">
       <div class="upgrade-header">

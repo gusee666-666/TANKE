@@ -1,6 +1,6 @@
 // =====================================================================
 // 🎮 Battle City — Стальные коты
-// Шаг 10: звук + частицы + тряска + вибро
+// Шаг 7: визуальные темы уровней
 // =====================================================================
 
 // ---------------------------------------------------------------------
@@ -13,6 +13,8 @@ const CONFIG = {
   FPS: 60,
   STEP_MS: 1000 / 60,
   GRID_ALPHA: 0.025,
+
+  THEME_TRANSITION_MS: 1200,
 
   PLAYER: {
     SPEED_BASE: 90,
@@ -75,7 +77,76 @@ const CONFIG = {
 const W = CONFIG.TILE * CONFIG.GRID;
 
 // ---------------------------------------------------------------------
-// 🎵 AUDIO — синтез звуков через Web Audio API
+// 🏛 THEMES — 5 визуальных тем, циклично привязаны к уровням
+// ---------------------------------------------------------------------
+const THEMES = [
+  {
+    name: 'Летний сад',
+    bg:         '#0a0612',
+    grid:       'rgba(140, 255, 180, 0.05)',
+    nameColor:  '#8fffb7',
+  },
+  {
+    name: 'Зимний дворец',
+    bg:         '#170f05',
+    grid:       'rgba(255, 215, 130, 0.06)',
+    nameColor:  '#ffd88f',
+  },
+  {
+    name: 'Невский проспект',
+    bg:         '#0a0f1a',
+    grid:       'rgba(150, 190, 255, 0.06)',
+    nameColor:  '#9ec9ff',
+  },
+  {
+    name: 'Крыша Эрмитажа',
+    bg:         '#050510',
+    grid:       'rgba(200, 220, 255, 0.08)',
+    nameColor:  '#c8dcff',
+  },
+  {
+    name: 'Подвал',
+    bg:         '#140805',
+    grid:       'rgba(255, 130, 90, 0.05)',
+    nameColor:  '#ff9f7f',
+  },
+];
+
+// ---------------------------------------------------------------------
+// UTILS — цвет
+// ---------------------------------------------------------------------
+function hexToRgb(hex) {
+  const h = hex.replace('#', '');
+  const v = h.length === 3 ? h.split('').map(c => c + c).join('') : h;
+  const n = parseInt(v, 16);
+  return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 };
+}
+
+function lerpRgb(a, b, t) {
+  return {
+    r: Math.round(a.r + (b.r - a.r) * t),
+    g: Math.round(a.g + (b.g - a.g) * t),
+    b: Math.round(a.b + (b.b - a.b) * t),
+  };
+}
+
+function rgbCss(rgb, alpha = 1) {
+  return alpha >= 1
+    ? `rgb(${rgb.r}, ${rgb.g}, ${rgb.b})`
+    : `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${alpha})`;
+}
+
+function parseRgba(str) {
+  const m = str.match(/rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*(?:,\s*([\d.]+))?\s*\)/);
+  if (!m) return { rgb: { r: 255, g: 183, b: 224 }, alpha: 0.06 };
+  return {
+    rgb: { r: +m[1], g: +m[2], b: +m[3] },
+    alpha: m[4] !== undefined ? +m[4] : 1,
+  };
+}
+
+// ---------------------------------------------------------------------
+// 🎵 AUDIO
 // ---------------------------------------------------------------------
 const AUDIO = {
   ctx: null,
@@ -104,7 +175,6 @@ const AUDIO = {
     }
   },
 
-  // Базовый тон
   tone({ freq, type = 'square', duration = 0.1, volume = 0.4, sweepTo = null, delay = 0 }) {
     if (!this.enabled || !this.ctx) return;
     const now = this.ctx.currentTime + delay;
@@ -124,7 +194,6 @@ const AUDIO = {
     osc.stop(now + duration + 0.03);
   },
 
-  // Шум (для взрывов)
   noise({ duration = 0.25, volume = 0.4, lowpass = 1200, delay = 0 }) {
     if (!this.enabled || !this.ctx) return;
     const now = this.ctx.currentTime + delay;
@@ -148,55 +217,19 @@ const AUDIO = {
     src.start(now);
   },
 
-  // ---- Игровые звуки ----
-  shootPlayer() {
-    this.tone({ freq: 900, sweepTo: 220, type: 'square', duration: 0.07, volume: 0.22 });
-  },
-
-  shootEnemy() {
-    this.tone({ freq: 600, sweepTo: 180, type: 'square', duration: 0.06, volume: 0.12 });
-  },
-
-  hitBrick() {
-    this.tone({ freq: 220, type: 'square', duration: 0.05, volume: 0.16 });
-    this.tone({ freq: 180, type: 'sawtooth', duration: 0.06, volume: 0.10, delay: 0.02 });
-  },
-
-  hitSteel() {
-    this.tone({ freq: 1500, sweepTo: 600, type: 'square', duration: 0.08, volume: 0.14 });
-  },
-
-  explosion() {
-    this.noise({ duration: 0.35, volume: 0.45, lowpass: 900 });
-    this.tone({ freq: 140, sweepTo: 40, type: 'sawtooth', duration: 0.3, volume: 0.28 });
-  },
-
-  bigExplosion() {
-    this.noise({ duration: 0.7, volume: 0.55, lowpass: 600 });
-    this.tone({ freq: 90, sweepTo: 25, type: 'sawtooth', duration: 0.6, volume: 0.35 });
-  },
-
-  playerHit() {
-    this.tone({ freq: 500, sweepTo: 60, type: 'sawtooth', duration: 0.35, volume: 0.35 });
-  },
-
-  upgrade() {
-    [523, 659, 784].forEach((f, i) => {
-      this.tone({ freq: f, type: 'triangle', duration: 0.13, volume: 0.28, delay: i * 0.09 });
-    });
-  },
-
-  victory() {
-    [523, 659, 784, 1047, 1319].forEach((f, i) => {
-      this.tone({ freq: f, type: 'triangle', duration: 0.18, volume: 0.3, delay: i * 0.14 });
-    });
-  },
-
-  gameOver() {
-    [400, 300, 200, 100].forEach((f, i) => {
-      this.tone({ freq: f, type: 'sawtooth', duration: 0.28, volume: 0.3, delay: i * 0.2 });
-    });
-  },
+  shootPlayer() { this.tone({ freq: 900, sweepTo: 220, type: 'square', duration: 0.07, volume: 0.22 }); },
+  shootEnemy()  { this.tone({ freq: 600, sweepTo: 180, type: 'square', duration: 0.06, volume: 0.12 }); },
+  hitBrick()    { this.tone({ freq: 220, type: 'square', duration: 0.05, volume: 0.16 });
+                  this.tone({ freq: 180, type: 'sawtooth', duration: 0.06, volume: 0.10, delay: 0.02 }); },
+  hitSteel()    { this.tone({ freq: 1500, sweepTo: 600, type: 'square', duration: 0.08, volume: 0.14 }); },
+  explosion()   { this.noise({ duration: 0.35, volume: 0.45, lowpass: 900 });
+                  this.tone({ freq: 140, sweepTo: 40, type: 'sawtooth', duration: 0.3, volume: 0.28 }); },
+  bigExplosion(){ this.noise({ duration: 0.7, volume: 0.55, lowpass: 600 });
+                  this.tone({ freq: 90, sweepTo: 25, type: 'sawtooth', duration: 0.6, volume: 0.35 }); },
+  playerHit()   { this.tone({ freq: 500, sweepTo: 60, type: 'sawtooth', duration: 0.35, volume: 0.35 }); },
+  upgrade()     { [523, 659, 784].forEach((f, i) => this.tone({ freq: f, type: 'triangle', duration: 0.13, volume: 0.28, delay: i * 0.09 })); },
+  victory()     { [523, 659, 784, 1047, 1319].forEach((f, i) => this.tone({ freq: f, type: 'triangle', duration: 0.18, volume: 0.3, delay: i * 0.14 })); },
+  gameOver()    { [400, 300, 200, 100].forEach((f, i) => this.tone({ freq: f, type: 'sawtooth', duration: 0.28, volume: 0.3, delay: i * 0.2 })); },
 };
 
 function unlockAudio() {
@@ -208,14 +241,9 @@ document.addEventListener('click', unlockAudio, { once: true });
 document.addEventListener('touchstart', unlockAudio, { once: true, passive: true });
 document.addEventListener('keydown', unlockAudio, { once: true });
 
-// ---------------------------------------------------------------------
-// 📳 VIBRATION
-// ---------------------------------------------------------------------
 function vibrate(ms) {
   if (!state.soundEnabled) return;
-  if (navigator.vibrate) {
-    try { navigator.vibrate(ms); } catch (e) {}
-  }
+  if (navigator.vibrate) { try { navigator.vibrate(ms); } catch (e) {} }
 }
 
 // ---------------------------------------------------------------------
@@ -238,16 +266,12 @@ function spawnParticles(x, y, count, opts = {}) {
       x, y,
       vx: Math.cos(angle) * speed,
       vy: Math.sin(angle) * speed,
-      life,
-      maxLife: life,
+      life, maxLife: life,
       size: 2 + Math.random() * 3,
-      color,
-      gravity,
+      color, gravity,
     });
   }
-  if (particles.length > PARTICLE_MAX) {
-    particles.splice(0, particles.length - PARTICLE_MAX);
-  }
+  if (particles.length > PARTICLE_MAX) particles.splice(0, particles.length - PARTICLE_MAX);
 }
 
 function updateParticles(dt) {
@@ -362,6 +386,7 @@ const hudLevel    = document.getElementById('hud-level');
 const hudScore    = document.getElementById('hud-score');
 const hudLives    = document.getElementById('hud-lives');
 const hudEnemies  = document.getElementById('hud-enemies');
+const hudTheme    = document.getElementById('hud-theme');
 
 const buildSpeed  = document.getElementById('build-speed');
 const buildArmor  = document.getElementById('build-armor');
@@ -421,8 +446,12 @@ const state = {
   mobileInput: { moveX: 0, moveY: 0, fire: false },
 
   soundEnabled: true,
-
   hitFlash: 0,
+
+  // 🆕 Темы
+  themeIndex: 0,
+  prevThemeIndex: 0,
+  themeTransitionStart: 0,
 };
 
 // ---------------------------------------------------------------------
@@ -439,6 +468,43 @@ function getPlayerReload() {
 }
 function getPlayerMaxHp() { return state.build.armor; }
 function getPlayerDamageLevel() { return state.build.damage; }
+
+// ---------------------------------------------------------------------
+// 🏛 THEME — интерполяция цветов фона и сетки
+// ---------------------------------------------------------------------
+function getCurrentThemeColors() {
+  const from = THEMES[state.prevThemeIndex] || THEMES[0];
+  const to   = THEMES[state.themeIndex]     || THEMES[0];
+
+  const rawT = (performance.now() - state.themeTransitionStart) / CONFIG.THEME_TRANSITION_MS;
+  const t = Math.max(0, Math.min(1, rawT));
+
+  const bg = lerpRgb(hexToRgb(from.bg), hexToRgb(to.bg), t);
+
+  const gFrom = parseRgba(from.grid);
+  const gTo   = parseRgba(to.grid);
+  const gRgb  = lerpRgb(gFrom.rgb, gTo.rgb, t);
+  const gAlpha = gFrom.alpha + (gTo.alpha - gFrom.alpha) * t;
+
+  return { bg, gridRgb: gRgb, gridAlpha: gAlpha };
+}
+
+function updateThemeByLevel() {
+  const newIndex = (state.level - 1) % THEMES.length;
+  if (newIndex === state.themeIndex && state.lastResult !== null) {
+    // Не переназначаем на том же уровне
+  }
+
+  state.prevThemeIndex = state.themeIndex;
+  state.themeIndex = newIndex;
+  state.themeTransitionStart = performance.now();
+
+  const theme = THEMES[newIndex];
+  if (hudTheme) {
+    hudTheme.textContent = theme.name;
+    hudTheme.style.color = theme.nameColor || '';
+  }
+}
 
 // ---------------------------------------------------------------------
 // SOUND CONTROL
@@ -468,17 +534,13 @@ function toggleSound() {
 }
 
 if (soundBtn) {
-  const handler = (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    toggleSound();
-  };
+  const handler = (e) => { e.preventDefault(); e.stopPropagation(); toggleSound(); };
   soundBtn.addEventListener('click', handler);
   soundBtn.addEventListener('touchend', handler, { passive: false });
 }
 
 // ---------------------------------------------------------------------
-// MAP — генерация с центральной крепостью
+// MAP
 // ---------------------------------------------------------------------
 function generateRandomMap() {
   const G = CONFIG.GRID;
@@ -768,8 +830,6 @@ function damagePlayer() {
   shake(6, 220);
   vibrate(40);
   AUDIO.playerHit();
-
-  // Частицы вокруг игрока
   spawnParticles(p.x + p.w / 2, p.y + p.h / 2, 10, { color: '#ff5f5f' });
 
   if (p.hp <= 0) {
@@ -806,7 +866,7 @@ function updateRespawn(dtMs) {
 }
 
 // ---------------------------------------------------------------------
-// ВЗРЫВ — универсальная функция
+// ВЗРЫВ
 // ---------------------------------------------------------------------
 function explodeAt(x, y, kind = 'enemy') {
   if (kind === 'player') {
@@ -867,11 +927,9 @@ function shootPlayer() {
   const isDouble = state.build.doubleShot > 0;
   const perp = isDouble ? [-6, 6] : [0];
 
-  // Звук + дым из ствола
   AUDIO.shootPlayer();
   vibrate(12);
 
-  // Точка выхода ствола (примерно)
   let muzzleX = cx, muzzleY = cy;
   if (p.dir === 'left') muzzleX = p.x;
   else if (p.dir === 'right') muzzleX = p.x + p.w;
@@ -927,7 +985,6 @@ function hitBrick(cx, cy, bullet) {
   for (const i of toBreak) tile.sub[i] = 0;
   if (tile.sub.every(s => s === 0)) state.map[cy][cx] = null;
 
-  // Звук + искры
   const { TILE } = CONFIG;
   const px = cx * TILE + TILE / 2;
   const py = cy * TILE + TILE / 2;
@@ -968,17 +1025,13 @@ function bulletHitWorld(bullet) {
       if (!t) continue;
       if (t.type === 'brick') { hitBrick(cx, cy, bullet); return true; }
       if (t.type === 'steel') {
-        // Искры от стали
         const px = cx * TILE + TILE / 2;
         const py = cy * TILE + TILE / 2;
         AUDIO.hitSteel();
         vibrate(8);
         spawnParticles(px, py, 5, { color: '#f0f0f5', speedMin: 60, speedMax: 160 });
         spawnParticles(px, py, 2, { color: '#ffffff', speedMin: 40, speedMax: 120 });
-
-        if (bullet.canBreakSteel) {
-          state.map[cy][cx] = null;
-        }
+        if (bullet.canBreakSteel) state.map[cy][cx] = null;
         return true;
       }
     }
@@ -992,10 +1045,8 @@ function bulletHitTanks(bullet) {
       if (!e.alive) continue;
       if (aabb(bullet, e)) {
         e.hp -= 1;
-        if (e.hp <= 0) {
-          killEnemy(e);
-        } else {
-          // Попадание без убийства — искры и звук
+        if (e.hp <= 0) killEnemy(e);
+        else {
           spawnParticles(e.x + e.w / 2, e.y + e.h / 2, 5, { color: '#ffd24a' });
           AUDIO.hitSteel();
         }
@@ -1031,7 +1082,6 @@ function updateBullets(dt) {
       if (destroyed.has(b)) continue;
       if (bulletsCollide(a, b)) {
         destroyed.add(a); destroyed.add(b);
-        // маленький звук и искры
         spawnParticles(a.x + a.w / 2, a.y + a.h / 2, 4, { color: '#ffd24a' });
         break;
       }
@@ -1343,11 +1393,13 @@ document.addEventListener('keyup', (e) => {
 // RENDER — тайлы
 // ---------------------------------------------------------------------
 function drawField() {
-  ctx.fillStyle = CONFIG.PALETTE.bg;
+  const { bg, gridRgb, gridAlpha } = getCurrentThemeColors();
+
+  ctx.fillStyle = rgbCss(bg);
   ctx.fillRect(0, 0, W, W);
 
-  if (CONFIG.GRID_ALPHA > 0) {
-    ctx.strokeStyle = `rgba(255, 183, 224, ${CONFIG.GRID_ALPHA})`;
+  if (gridAlpha > 0.001) {
+    ctx.strokeStyle = rgbCss(gridRgb, gridAlpha);
     ctx.lineWidth = 1;
     for (let i = 0; i <= CONFIG.GRID; i++) {
       const p = i * CONFIG.TILE + 0.5;
@@ -1595,7 +1647,6 @@ function drawBullet(b) {
 }
 
 function render() {
-  // Тряска экрана
   const s = getShakeOffset();
 
   ctx.save();
@@ -1616,10 +1667,8 @@ function render() {
   if (state.player && state.player.alive) drawPlayerTank(state.player);
   for (const b of state.bullets) drawBullet(b);
 
-  // Частицы (поверх танков)
   drawParticles();
 
-  // Кусты поверх всего
   if (state.map) {
     for (let y = 0; y < CONFIG.GRID; y++) {
       for (let x = 0; x < CONFIG.GRID; x++) {
@@ -1631,7 +1680,6 @@ function render() {
 
   ctx.restore();
 
-  // Красная вспышка при потере жизни (вне translate, чтобы не сдвигалась)
   if (state.hitFlash > 0) {
     ctx.fillStyle = `rgba(255, 60, 80, ${state.hitFlash * 0.35})`;
     ctx.fillRect(0, 0, W, W);
@@ -1702,6 +1750,15 @@ function startGame() {
   state.awaitingUpgrade = false;
   state.hitFlash = 0;
 
+  // 🆕 Сброс темы
+  state.themeIndex = 0;
+  state.prevThemeIndex = 0;
+  state.themeTransitionStart = performance.now();
+  if (hudTheme) {
+    hudTheme.textContent = THEMES[0].name;
+    hudTheme.style.color = THEMES[0].nameColor || '';
+  }
+
   loadLevel(state.level - 1);
   spawnPlayer();
 
@@ -1725,6 +1782,9 @@ function nextLevel() {
   state.invulnTimerMs = 0;
   state.lastResult = null;
   state.awaitingUpgrade = false;
+
+  // 🆕 Смена темы
+  updateThemeByLevel();
 
   loadLevel(state.level - 1);
   spawnPlayer();
@@ -1885,7 +1945,6 @@ startBtn.addEventListener('touchend', handleStartBtn, { passive: false });
 // INIT
 // ---------------------------------------------------------------------
 (function init() {
-  // Загрузить настройку звука
   const savedSound = localStorage.getItem(CONFIG.LS_SOUND);
   state.soundEnabled = savedSound !== '0';
   updateSoundUI();
@@ -1893,6 +1952,16 @@ startBtn.addEventListener('touchend', handleStartBtn, { passive: false });
   loadLevel(0);
   spawnPlayer();
   state.invulnTimerMs = 0;
+
+  // Стартовая тема
+  state.themeIndex = 0;
+  state.prevThemeIndex = 0;
+  state.themeTransitionStart = performance.now();
+  if (hudTheme) {
+    hudTheme.textContent = THEMES[0].name;
+    hudTheme.style.color = THEMES[0].nameColor || '';
+  }
+
   updateHUD();
   render();
 })();
