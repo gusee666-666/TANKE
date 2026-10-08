@@ -1,6 +1,6 @@
 // =====================================================================
 // 🎮 Battle City — Стальные коты
-// Прокачка + мобильное управление. Усиленная защита базы.
+// Прокачка + мобильное управление + центральная крепость
 // =====================================================================
 
 // ---------------------------------------------------------------------
@@ -211,7 +211,7 @@ function getPlayerMaxHp() { return state.build.armor; }
 function getPlayerDamageLevel() { return state.build.damage; }
 
 // ---------------------------------------------------------------------
-// MAP — генерация с усиленной защитой базы
+// MAP — генерация. Центральная крепость + защита базы.
 // ---------------------------------------------------------------------
 function generateRandomMap() {
   const G = CONFIG.GRID;
@@ -221,21 +221,35 @@ function generateRandomMap() {
   const baseX = 7;
   const baseY = 15;
 
-  // ========== УСИЛЕННАЯ ЗАЩИТА БАЗЫ ==========
+  // ========== ЦЕНТРАЛЬНАЯ КРЕПОСТЬ ==========
+  // Стальной крест в центре карты
+  map[8][7] = { type: 'steel' };
+  map[8][8] = { type: 'steel' };
+  map[8][9] = { type: 'steel' };
+  map[7][8] = { type: 'steel' };
+  map[9][8] = { type: 'steel' };
+
+  // Углы крепости — кирпич (пробиваются)
+  map[7][7] = { type: 'brick', sub: [1, 1, 1, 1] };
+  map[7][9] = { type: 'brick', sub: [1, 1, 1, 1] };
+  map[9][7] = { type: 'brick', sub: [1, 1, 1, 1] };
+  map[9][9] = { type: 'brick', sub: [1, 1, 1, 1] };
+
+  // ========== ЗАЩИТА БАЗЫ ==========
   // Двойной слой кирпича над базой
   map[13][7] = { type: 'brick', sub: [1, 1, 1, 1] };
   map[13][8] = { type: 'brick', sub: [1, 1, 1, 1] };
 
-  // Верхний ряд базы: центр — кирпич, боковые — СТАЛЬ
-  map[14][6] = { type: 'steel' };
+  // Ряд базы — кирпич по всей ширине
+  map[14][6] = { type: 'brick', sub: [1, 1, 1, 1] };
   map[14][7] = { type: 'brick', sub: [1, 1, 1, 1] };
   map[14][8] = { type: 'brick', sub: [1, 1, 1, 1] };
-  map[14][9] = { type: 'steel' };
+  map[14][9] = { type: 'brick', sub: [1, 1, 1, 1] };
 
-  // Боковые стенки базы — СТАЛЬ (не пробить обычной пулей)
+  // Боковые стенки базы — кирпич
   for (let y = 15; y <= 16; y++) {
-    map[y][6] = { type: 'steel' };
-    map[y][9] = { type: 'steel' };
+    map[y][6] = { type: 'brick', sub: [1, 1, 1, 1] };
+    map[y][9] = { type: 'brick', sub: [1, 1, 1, 1] };
   }
 
   // Очистить саму область базы 2×2
@@ -245,7 +259,6 @@ function generateRandomMap() {
 
   // ========== КОРИДОРЫ ==========
   const horizontalCorridors = [1, 13];
-  // Вертикальные коридоры — больше НЕ по центру, а по краям
   const verticalCorridors = [3, 13];
 
   function isCorridor(x, y) {
@@ -254,8 +267,8 @@ function generateRandomMap() {
     return false;
   }
 
-  // ========== КЛАСТЕРЫ ПРЕПЯТСТВИЙ ==========
-  const clusterCount = 10 + Math.floor(Math.random() * 6);
+  // ========== КЛАСТЕРЫ ПРЕПЯТСТВИЙ (y=2..12) ==========
+  const clusterCount = 8 + Math.floor(Math.random() * 5);
   for (let i = 0; i < clusterCount; i++) {
     const r = Math.random();
     let tileType = 'brick';
@@ -273,9 +286,12 @@ function generateRandomMap() {
         const px = startX + dx;
         const py = startY + dy;
         if (px < 0 || px >= G || py < 0 || py >= G) continue;
-        if (py >= 13) continue;                     // не трогаем нижнюю часть
+        if (py >= 13) continue;
         if (isCorridor(px, py)) continue;
         if (map[py][px]) continue;
+
+        // Зона центральной крепости — не трогаем
+        if (px >= 6 && px <= 10 && py >= 6 && py <= 10) continue;
 
         if (tileType === 'brick') map[py][px] = { type: 'brick', sub: [1, 1, 1, 1] };
         else map[py][px] = { type: tileType };
@@ -284,13 +300,16 @@ function generateRandomMap() {
   }
 
   // ========== ОДИНОЧНЫЕ ПРЕПЯТСТВИЯ ==========
-  const singles = 10 + Math.floor(Math.random() * 8);
+  const singles = 8 + Math.floor(Math.random() * 6);
   for (let i = 0; i < singles; i++) {
     const px = 1 + Math.floor(Math.random() * (G - 2));
     const py = 2 + Math.floor(Math.random() * 11);
     if (py >= 13) continue;
     if (isCorridor(px, py)) continue;
     if (map[py][px]) continue;
+
+    // Зона центральной крепости
+    if (px >= 6 && px <= 10 && py >= 6 && py <= 10) continue;
 
     const r = Math.random();
     let tile;
