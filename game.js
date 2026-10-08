@@ -1,6 +1,6 @@
 // =====================================================================
 // 🎮 Battle City — Стальные коты
-// Step 9.1: редактор из меню + размер карты + без врагов
+// Прокачка + мобильное управление. Редактор удалён.
 // =====================================================================
 
 // ---------------------------------------------------------------------
@@ -8,9 +8,7 @@
 // ---------------------------------------------------------------------
 const CONFIG = {
   TILE: 28,
-  GRID: 17,                // 🆕 изменяемое
-  MIN_GRID: 11,
-  MAX_GRID: 21,
+  GRID: 17,
 
   FPS: 60,
   STEP_MS: 1000 / 60,
@@ -43,7 +41,6 @@ const CONFIG = {
   MAX_CONCURRENT_PER_2_LEVELS: 1,
 
   LS_BEST: 'battleCityBest',
-  LS_CUSTOM_LEVELS: 'battleCityCustomLevels',
 
   PALETTE: {
     bg:         '#0a0612',
@@ -74,24 +71,7 @@ const CONFIG = {
   },
 };
 
-// 🆕 W и SPAWN_POINTS теперь динамические
-let W = CONFIG.TILE * CONFIG.GRID;
-
-function updateW() {
-  W = CONFIG.TILE * CONFIG.GRID;
-  canvas.width = W;
-  canvas.height = W;
-}
-
-function getSpawnPoints() {
-  const g = CONFIG.GRID;
-  const mid = Math.floor(g / 2);
-  return [
-    { x: 0,     y: 0 },
-    { x: mid,   y: 0 },
-    { x: g - 1, y: 0 },
-  ];
-}
+const W = CONFIG.TILE * CONFIG.GRID;
 
 // ---------------------------------------------------------------------
 // UPGRADES
@@ -141,6 +121,12 @@ const PROGRESSION = [
   { basic: 2, fast: 4, power: 5, armor: 4, heavy: 4, boss: 2 },
 ];
 
+const SPAWN_POINTS = [
+  { x: 0,  y: 0 },
+  { x: 8,  y: 0 },
+  { x: 16, y: 0 },
+];
+
 // ---------------------------------------------------------------------
 // DOM
 // ---------------------------------------------------------------------
@@ -163,31 +149,6 @@ const overlay     = document.getElementById('overlay');
 const overlayTitle = document.getElementById('overlay-title');
 const overlayText  = document.getElementById('overlay-text');
 const startBtn     = document.getElementById('start-btn');
-
-const menuExtras   = document.getElementById('menu-extras');
-const menuEditorBtn = document.getElementById('menu-editor-btn');
-const menuLevelsBtn = document.getElementById('menu-levels-btn');
-
-const pauseExtras     = document.getElementById('pause-extras');
-const openEditorBtn   = document.getElementById('open-editor-btn');
-const openLevelsBtn   = document.getElementById('open-levels-btn');
-
-const editorOverlay   = document.getElementById('editor-overlay');
-const editorCanvas    = document.getElementById('editor-canvas');
-const editorClearBtn  = document.getElementById('editor-clear');
-const editorCloseBtn  = document.getElementById('editor-close');
-const editorSaveBtn   = document.getElementById('editor-save');
-const editorApplyBtn  = document.getElementById('editor-apply');
-const paletteBtns     = document.querySelectorAll('.palette-btn');
-
-const sizeMinusBtn = document.getElementById('size-minus');
-const sizePlusBtn  = document.getElementById('size-plus');
-const sizeValueEl  = document.getElementById('size-value');
-const noEnemiesChk = document.getElementById('editor-no-enemies');
-
-const levelsOverlay   = document.getElementById('levels-overlay');
-const levelsList      = document.getElementById('levels-list');
-const levelsCloseBtn  = document.getElementById('levels-close');
 
 const upgradeOverlay  = document.getElementById('upgrade-overlay');
 const upgradeLevelNum = document.getElementById('upgrade-level-num');
@@ -214,9 +175,6 @@ const state = {
   spawnIntervalMs: CONFIG.SPAWN_INTERVAL_START,
   spawnTimerMs: 0,
 
-  // 🆕 без врагов
-  noEnemies: false,
-
   build: { speed: 1, armor: 1, reload: 1, damage: 1, doubleShot: 0 },
 
   map: null,
@@ -235,17 +193,6 @@ const state = {
   awaitingUpgrade: false,
 
   mobileInput: { moveX: 0, moveY: 0, fire: false },
-
-  editor: {
-    active: false,
-    selectedTile: 'empty',
-    map: null,
-    base: null,
-    painting: false,
-    eraseMode: false,
-    gridSize: CONFIG.GRID,        // 🆕
-    noEnemies: false,             // 🆕
-  },
 };
 
 // ---------------------------------------------------------------------
@@ -254,14 +201,12 @@ const state = {
 function getPlayerSpeed() {
   return CONFIG.PLAYER.SPEED_BASE + (state.build.speed - 1) * CONFIG.PLAYER.SPEED_PER_LEVEL;
 }
-
 function getPlayerReload() {
   return Math.max(
     CONFIG.PLAYER.RELOAD_MIN,
     CONFIG.PLAYER.RELOAD_BASE - (state.build.reload - 1) * CONFIG.PLAYER.RELOAD_PER_LEVEL
   );
 }
-
 function getPlayerMaxHp() { return state.build.armor; }
 function getPlayerDamageLevel() { return state.build.damage; }
 
@@ -273,32 +218,29 @@ function generateRandomMap() {
   const map = [];
   for (let y = 0; y < G; y++) map.push(new Array(G).fill(null));
 
-  const baseX = Math.floor((G - 2) / 2);
-  const baseY = G - 2;
+  const baseX = 7;
+  const baseY = 15;
 
-  for (let x = baseX - 1; x <= baseX + 2; x++) {
-    if (x >= 0 && x < G) map[baseY - 1][x] = { type: 'brick', sub: [1, 1, 1, 1] };
-  }
-  for (let y = baseY; y <= baseY + 1; y++) {
-    if (baseX - 1 >= 0) map[y][baseX - 1] = { type: 'brick', sub: [1, 1, 1, 1] };
-    if (baseX + 2 < G)  map[y][baseX + 2] = { type: 'brick', sub: [1, 1, 1, 1] };
+  for (let x = 6; x <= 9; x++) map[14][x] = { type: 'brick', sub: [1, 1, 1, 1] };
+  for (let y = 15; y <= 16; y++) {
+    map[y][6] = { type: 'brick', sub: [1, 1, 1, 1] };
+    map[y][9] = { type: 'brick', sub: [1, 1, 1, 1] };
   }
 
   for (let dy = 0; dy < 2; dy++)
     for (let dx = 0; dx < 2; dx++)
       map[baseY + dy][baseX + dx] = null;
 
-  const midX = Math.floor(G / 2);
-  const horizontalCorridors = [1, baseY - 1];
-  const verticalCorridors = [midX];
+  const horizontalCorridors = [1, 13];
+  const verticalCorridors = [8];
 
   function isCorridor(x, y) {
     if (horizontalCorridors.includes(y)) return true;
-    if (verticalCorridors.includes(x) && y < baseY - 1) return true;
+    if (verticalCorridors.includes(x) && y < 14) return true;
     return false;
   }
 
-  const clusterCount = Math.floor(G * 0.6) + Math.floor(Math.random() * 4);
+  const clusterCount = 10 + Math.floor(Math.random() * 6);
   for (let i = 0; i < clusterCount; i++) {
     const r = Math.random();
     let tileType = 'brick';
@@ -308,15 +250,15 @@ function generateRandomMap() {
 
     const w = 1 + Math.floor(Math.random() * 3);
     const h = 1 + Math.floor(Math.random() * 2);
-    const startX = 1 + Math.floor(Math.random() * Math.max(1, G - 2 - w));
-    const startY = 2 + Math.floor(Math.random() * Math.max(1, baseY - 3));
+    const startX = 1 + Math.floor(Math.random() * (G - 2 - w));
+    const startY = 2 + Math.floor(Math.random() * 11);
 
     for (let dy = 0; dy < h; dy++) {
       for (let dx = 0; dx < w; dx++) {
         const px = startX + dx;
         const py = startY + dy;
         if (px < 0 || px >= G || py < 0 || py >= G) continue;
-        if (py >= baseY - 1) continue;
+        if (py >= 14) continue;
         if (isCorridor(px, py)) continue;
         if (map[py][px]) continue;
 
@@ -326,11 +268,11 @@ function generateRandomMap() {
     }
   }
 
-  const singles = Math.floor(G * 0.6) + Math.floor(Math.random() * 6);
+  const singles = 10 + Math.floor(Math.random() * 8);
   for (let i = 0; i < singles; i++) {
     const px = 1 + Math.floor(Math.random() * (G - 2));
-    const py = 2 + Math.floor(Math.random() * Math.max(1, baseY - 3));
-    if (py >= baseY - 1) continue;
+    const py = 2 + Math.floor(Math.random() * 11);
+    if (py >= 14) continue;
     if (isCorridor(px, py)) continue;
     if (map[py][px]) continue;
 
@@ -344,14 +286,13 @@ function generateRandomMap() {
     map[py][px] = tile;
   }
 
-  for (const sp of getSpawnPoints()) {
+  for (const sp of SPAWN_POINTS) {
     if (sp.x >= 0 && sp.x < G && sp.y >= 0 && sp.y < G) map[sp.y][sp.x] = null;
   }
 
-  // Расчистить зону игрока
-  for (let y = baseY; y <= baseY + 1; y++) {
-    for (let x = 0; x <= baseX - 2; x++) {
-      if (y >= 0 && y < G && x >= 0 && x < G) map[y][x] = null;
+  for (let y = 14; y <= 16; y++) {
+    for (let x = 0; x <= 5; x++) {
+      map[y][x] = null;
     }
   }
 
@@ -364,7 +305,7 @@ function loadLevel(levelIndex) {
   state.base = { x: generated.base.x, y: generated.base.y, alive: true };
   state.map = generated.map;
 
-  state.spawnQueue = state.noEnemies ? [] : buildSpawnQueue(levelIndex + 1);
+  state.spawnQueue = buildSpawnQueue(levelIndex + 1);
   state.enemiesTotal = state.spawnQueue.length;
   state.enemiesKilled = 0;
   state.enemies = [];
@@ -393,9 +334,7 @@ function buildSpawnQueue(level) {
   }
   if (level > PROGRESSION.length) {
     const extra = level - PROGRESSION.length;
-    for (let i = 0; i < extra; i++) {
-      queue.push('heavy', 'boss', 'armor');
-    }
+    for (let i = 0; i < extra; i++) queue.push('heavy', 'boss', 'armor');
   }
   return queue;
 }
@@ -453,13 +392,9 @@ function canMove(tank, nx, ny) {
 function spawnPlayer() {
   const { TILE } = CONFIG;
   const maxHp = getPlayerMaxHp();
-  const baseY = state.base ? state.base.y : CONFIG.GRID - 2;
-  const baseX = state.base ? state.base.x : Math.floor((CONFIG.GRID - 2) / 2);
-  const spawnX = Math.max(0, baseX - 3);
-
   state.player = {
-    x: spawnX * TILE,
-    y: baseY * TILE,
+    x: 4 * TILE,
+    y: 15 * TILE,
     w: TILE, h: TILE,
     dir: 'up',
     moving: false,
@@ -751,14 +686,11 @@ function updateBullets(dt) {
 // ENEMIES
 // ---------------------------------------------------------------------
 function trySpawnEnemy() {
-  if (state.noEnemies) return;
   if (state.spawnQueue.length === 0) return;
   if (state.enemies.filter(e => e.alive).length >= state.maxConcurrent) return;
 
   const { TILE } = CONFIG;
-  const spawnPoints = getSpawnPoints();
-
-  const free = spawnPoints.filter(sp => {
+  const free = SPAWN_POINTS.filter(sp => {
     const rect = { x: sp.x * TILE, y: sp.y * TILE, w: TILE, h: TILE };
     if (state.player && state.player.alive && aabb(rect, state.player)) return false;
     for (const e of state.enemies) {
@@ -901,15 +833,12 @@ function killEnemy(e) {
 }
 
 function checkLevelComplete() {
-  if (state.noEnemies) return;       // 🆕 в песочнице нет победы
-  if (state.enemiesTotal === 0) return;
   if (state.enemiesKilled >= state.enemiesTotal) {
     setTimeout(() => {
       if (!state.isRunning) return;
       state.isRunning = false;
       state.lastResult = 'win';
       state.awaitingUpgrade = true;
-      if (pauseExtras) pauseExtras.classList.add('hidden');
       if (state.animId) cancelAnimationFrame(state.animId);
       showUpgradeChoice();
     }, 800);
@@ -985,15 +914,13 @@ function update(dtMs) {
 
   if (state.mobileInput.fire) shootPlayer();
 
-  if (!state.noEnemies) {
-    state.spawnTimerMs += dtMs;
-    if (state.spawnTimerMs >= state.spawnIntervalMs) {
-      state.spawnTimerMs = 0;
-      trySpawnEnemy();
-    }
-    if (state.enemies.filter(e => e.alive).length === 0 && state.spawnQueue.length > 0) {
-      trySpawnEnemy();
-    }
+  state.spawnTimerMs += dtMs;
+  if (state.spawnTimerMs >= state.spawnIntervalMs) {
+    state.spawnTimerMs = 0;
+    trySpawnEnemy();
+  }
+  if (state.enemies.filter(e => e.alive).length === 0 && state.spawnQueue.length > 0) {
+    trySpawnEnemy();
   }
 
   updatePlayer(dt);
@@ -1013,7 +940,6 @@ const keysDown = new Set();
 
 document.addEventListener('keydown', (e) => {
   if (state.awaitingUpgrade) return;
-  if (state.editor.active) return;
 
   if (e.code === 'Space' || e.key === ' ') {
     e.preventDefault();
@@ -1367,25 +1293,18 @@ function loop(time) {
 // ---------------------------------------------------------------------
 // GAME CONTROL
 // ---------------------------------------------------------------------
-function startGame(useCustomMap = false) {
-  if (!useCustomMap) {
-    state.level = 1;
-    state.score = 0;
-    state.lives = 3;
-    state.build = { speed: 1, armor: 1, reload: 1, damage: 1, doubleShot: 0 };
-    state.noEnemies = false;
-    loadLevel(0);
-  }
-
+function startGame() {
+  state.level = 1;
+  state.score = 0;
+  state.lives = 3;
+  state.build = { speed: 1, armor: 1, reload: 1, damage: 1, doubleShot: 0 };
   state.pendingRespawn = false;
   state.respawnTimerMs = 0;
   state.invulnTimerMs = 0;
   state.lastResult = null;
   state.awaitingUpgrade = false;
 
-  if (menuExtras) menuExtras.classList.add('hidden');
-  if (pauseExtras) pauseExtras.classList.add('hidden');
-
+  loadLevel(state.level - 1);
   spawnPlayer();
 
   state.lastTime = 0;
@@ -1409,8 +1328,6 @@ function nextLevel() {
   state.lastResult = null;
   state.awaitingUpgrade = false;
 
-  if (pauseExtras) pauseExtras.classList.add('hidden');
-
   loadLevel(state.level - 1);
   spawnPlayer();
 
@@ -1433,7 +1350,6 @@ function gameOver(reason) {
   state.lastResult = 'lose';
   state.awaitingUpgrade = false;
   upgradeOverlay.classList.add('hidden');
-  if (pauseExtras) pauseExtras.classList.add('hidden');
   if (state.animId) cancelAnimationFrame(state.animId);
 
   overlayTitle.textContent = '💥 Игра окончена';
@@ -1444,7 +1360,6 @@ function gameOver(reason) {
     `Уничтожено врагов: <b>${state.enemiesKilled}</b><br>` +
     `Рекорд: <b>${state.best}</b>`;
   startBtn.textContent = 'Заново';
-  if (menuExtras) menuExtras.classList.remove('hidden');
   overlay.classList.remove('hidden');
 }
 
@@ -1457,12 +1372,9 @@ function togglePause() {
     overlayTitle.textContent = '⏸ Пауза';
     overlayText.textContent = 'Space или P — продолжить';
     startBtn.textContent = 'Продолжить';
-    if (menuExtras) menuExtras.classList.add('hidden');
-    if (pauseExtras) pauseExtras.classList.remove('hidden');
     overlay.classList.remove('hidden');
   } else {
     overlay.classList.add('hidden');
-    if (pauseExtras) pauseExtras.classList.add('hidden');
     state.lastTime = performance.now();
     state.accumulator = 0;
   }
@@ -1567,677 +1479,6 @@ startBtn.addEventListener('touchend', handleStartBtn, { passive: false });
     if (state.isRunning && !state.isPaused && !state.awaitingUpgrade) shootPlayer();
   }, { passive: false });
 })();
-
-// =====================================================================
-// CUSTOM LEVELS
-// =====================================================================
-const LS_CUSTOM_LEVELS = CONFIG.LS_CUSTOM_LEVELS;
-
-function getCustomLevels() {
-  try {
-    const raw = localStorage.getItem(LS_CUSTOM_LEVELS);
-    if (!raw) return [];
-    const arr = JSON.parse(raw);
-    return Array.isArray(arr) ? arr : [];
-  } catch (e) { return []; }
-}
-
-function saveCustomLevels(arr) {
-  try { localStorage.setItem(LS_CUSTOM_LEVELS, JSON.stringify(arr)); }
-  catch (e) { console.error('Не удалось сохранить уровни:', e); }
-}
-
-function isBaseArea(x, y) {
-  if (!state.editor.base) return false;
-  const b = state.editor.base;
-  return x >= b.x && x < b.x + 2 && y >= b.y && y < b.y + 2;
-}
-
-function serializeCustom(map, base, noEnemies) {
-  const lines = [];
-  for (let y = 0; y < state.editor.gridSize; y++) {
-    let line = '';
-    for (let x = 0; x < state.editor.gridSize; x++) {
-      const t = map[y][x];
-      if (!t) line += '.';
-      else if (t.type === 'brick') line += 'B';
-      else if (t.type === 'steel') line += 'S';
-      else if (t.type === 'water') line += 'W';
-      else if (t.type === 'trees') line += 'T';
-      else line += '.';
-    }
-    lines.push(line);
-  }
-  return {
-    base: { x: base.x, y: base.y },
-    lines,
-    gridSize: state.editor.gridSize,
-    noEnemies: !!noEnemies,
-  };
-}
-
-function deserializeCustom(data) {
-  const gridSize = data.gridSize || CONFIG.GRID;
-  const map = [];
-  for (let y = 0; y < gridSize; y++) {
-    const row = [];
-    const line = (data.lines && data.lines[y]) || '';
-    for (let x = 0; x < gridSize; x++) {
-      const ch = line[x];
-      if (ch === 'B') row.push({ type: 'brick', sub: [1, 1, 1, 1] });
-      else if (ch === 'S') row.push({ type: 'steel' });
-      else if (ch === 'W') row.push({ type: 'water' });
-      else if (ch === 'T') row.push({ type: 'trees' });
-      else row.push(null);
-    }
-    map.push(row);
-  }
-  const bx = Math.max(0, Math.min(gridSize - 2, data.base.x));
-  const by = Math.max(0, Math.min(gridSize - 2, data.base.y));
-  for (let dy = 0; dy < 2; dy++)
-    for (let dx = 0; dx < 2; dx++)
-      map[by + dy][bx + dx] = null;
-
-  return {
-    base: { x: bx, y: by },
-    map,
-    gridSize,
-    noEnemies: !!data.noEnemies,
-  };
-}
-
-// ---------- Размер карты ----------
-function applyEditorGridSize(newSize) {
-  const size = Math.max(CONFIG.MIN_GRID, Math.min(CONFIG.MAX_GRID, newSize));
-  if (size === state.editor.gridSize) return;
-
-  const oldMap = state.editor.map;
-  const oldBase = state.editor.base;
-
-  // Новая карта
-  const newMap = [];
-  for (let y = 0; y < size; y++) {
-    const row = [];
-    for (let x = 0; x < size; x++) {
-      const oldT = (oldMap && oldMap[y] && oldMap[y][x]) || null;
-      row.push(oldT ? JSON.parse(JSON.stringify(oldT)) : null);
-    }
-    newMap.push(row);
-  }
-
-  state.editor.gridSize = size;
-  state.editor.map = newMap;
-
-  // Позиция базы — если вылезает за пределы, в угол
-  let bx = oldBase ? oldBase.x : Math.floor((size - 2) / 2);
-  let by = oldBase ? oldBase.y : size - 2;
-  bx = Math.max(0, Math.min(size - 2, bx));
-  by = Math.max(0, Math.min(size - 2, by));
-  state.editor.base = { x: bx, y: by };
-
-  // Очищаем площадь базы
-  for (let dy = 0; dy < 2; dy++)
-    for (let dx = 0; dx < 2; dx++)
-      state.editor.map[by + dy][bx + dx] = null;
-
-  // Обновить canvas размером под новое поле
-  editorCanvas.width = CONFIG.TILE * size;
-  editorCanvas.height = CONFIG.TILE * size;
-  sizeValueEl.textContent = `${size} × ${size}`;
-
-  updateSizeButtons();
-  renderEditor();
-}
-
-function updateSizeButtons() {
-  if (sizeMinusBtn) sizeMinusBtn.disabled = state.editor.gridSize <= CONFIG.MIN_GRID;
-  if (sizePlusBtn)  sizePlusBtn.disabled  = state.editor.gridSize >= CONFIG.MAX_GRID;
-  if (sizeValueEl)  sizeValueEl.textContent = `${state.editor.gridSize} × ${state.editor.gridSize}`;
-}
-
-// ---------- Открытие / закрытие ----------
-function openEditor() {
-  // Если карта ещё не загружена (до старта игры) — возьмём дефолтную
-  if (!state.map || !state.base) {
-    loadLevel(0);
-  }
-
-  const gridSize = CONFIG.GRID;
-  const map = [];
-  for (let y = 0; y < gridSize; y++) {
-    const row = [];
-    for (let x = 0; x < gridSize; x++) {
-      const t = state.map[y][x];
-      if (!t) row.push(null);
-      else if (t.type === 'brick') row.push({ type: 'brick', sub: [1, 1, 1, 1] });
-      else row.push({ type: t.type });
-    }
-    map.push(row);
-  }
-
-  state.editor.active = true;
-  state.editor.selectedTile = 'empty';
-  state.editor.map = map;
-  state.editor.base = { x: state.base.x, y: state.base.y };
-  state.editor.painting = false;
-  state.editor.eraseMode = false;
-  state.editor.gridSize = gridSize;
-  state.editor.noEnemies = state.noEnemies;
-
-  editorCanvas.width = CONFIG.TILE * gridSize;
-  editorCanvas.height = CONFIG.TILE * gridSize;
-
-  if (noEnemiesChk) noEnemiesChk.checked = state.editor.noEnemies;
-
-  updateSizeButtons();
-  updatePaletteUI();
-
-  overlay.classList.add('hidden');
-  upgradeOverlay.classList.add('hidden');
-  editorOverlay.classList.remove('hidden');
-
-  renderEditor();
-}
-
-function closeEditor() {
-  state.editor.active = false;
-  editorOverlay.classList.add('hidden');
-
-  // Показать стартовый оверлей или паузу
-  if (state.isRunning) {
-    state.isPaused = true;
-    overlayTitle.textContent = '⏸ Пауза';
-    overlayText.textContent = 'Space или P — продолжить';
-    startBtn.textContent = 'Продолжить';
-    if (menuExtras) menuExtras.classList.add('hidden');
-    if (pauseExtras) pauseExtras.classList.remove('hidden');
-  } else {
-    // Возврат в стартовое меню
-    if (state.lastResult !== 'lose') {
-      overlayTitle.textContent = '🎮 Стальные коты';
-      overlayText.textContent = 'Защити базу от вражеских танков';
-      startBtn.textContent = 'Играть';
-    }
-    if (menuExtras) menuExtras.classList.remove('hidden');
-    if (pauseExtras) pauseExtras.classList.add('hidden');
-  }
-  overlay.classList.remove('hidden');
-}
-
-// ---------- Палитра ----------
-function updatePaletteUI() {
-  paletteBtns.forEach(btn => {
-    btn.classList.toggle('active', btn.dataset.tile === state.editor.selectedTile);
-  });
-}
-
-paletteBtns.forEach(btn => {
-  const fire = (e) => {
-    e.preventDefault(); e.stopPropagation();
-    state.editor.selectedTile = btn.dataset.tile;
-    updatePaletteUI();
-  };
-  btn.addEventListener('click', fire);
-  btn.addEventListener('touchend', fire, { passive: false });
-});
-
-// ---------- Размер карты ----------
-if (sizeMinusBtn) {
-  const fire = (e) => {
-    e.preventDefault(); e.stopPropagation();
-    applyEditorGridSize(state.editor.gridSize - 2);
-  };
-  sizeMinusBtn.addEventListener('click', fire);
-  sizeMinusBtn.addEventListener('touchend', fire, { passive: false });
-}
-if (sizePlusBtn) {
-  const fire = (e) => {
-    e.preventDefault(); e.stopPropagation();
-    applyEditorGridSize(state.editor.gridSize + 2);
-  };
-  sizePlusBtn.addEventListener('click', fire);
-  sizePlusBtn.addEventListener('touchend', fire, { passive: false });
-}
-
-// ---------- Без врагов ----------
-if (noEnemiesChk) {
-  noEnemiesChk.addEventListener('change', () => {
-    state.editor.noEnemies = noEnemiesChk.checked;
-  });
-}
-
-// ---------- Рендер редактора ----------
-function renderEditor() {
-  if (!state.editor.active) return;
-  const TILE = CONFIG.TILE;
-  const size = state.editor.gridSize;
-  const sizePx = TILE * size;
-  const P = CONFIG.PALETTE;
-  const eCtx = editorCanvas.getContext('2d');
-
-  eCtx.fillStyle = P.bg;
-  eCtx.fillRect(0, 0, sizePx, sizePx);
-
-  eCtx.strokeStyle = 'rgba(255, 183, 224, 0.10)';
-  eCtx.lineWidth = 1;
-  for (let i = 0; i <= size; i++) {
-    const p = i * TILE + 0.5;
-    eCtx.beginPath(); eCtx.moveTo(p, 0); eCtx.lineTo(p, sizePx); eCtx.stroke();
-    eCtx.beginPath(); eCtx.moveTo(0, p); eCtx.lineTo(sizePx, p); eCtx.stroke();
-  }
-
-  for (let y = 0; y < size; y++) {
-    for (let x = 0; x < size; x++) {
-      const t = state.editor.map[y][x];
-      if (!t) continue;
-      const px = x * TILE, py = y * TILE;
-
-      if (t.type === 'brick') {
-        eCtx.fillStyle = P.brick;
-        eCtx.fillRect(px + 1, py + 1, TILE - 2, TILE - 2);
-        eCtx.strokeStyle = P.brickDark;
-        eCtx.lineWidth = 1;
-        eCtx.strokeRect(px + 1.5, py + 1.5, TILE - 3, TILE - 3);
-        eCtx.beginPath();
-        eCtx.moveTo(px + 1, py + TILE / 2);
-        eCtx.lineTo(px + TILE - 1, py + TILE / 2);
-        eCtx.stroke();
-      } else if (t.type === 'steel') {
-        eCtx.fillStyle = P.steel;
-        eCtx.fillRect(px + 1, py + 1, TILE - 2, TILE - 2);
-        eCtx.strokeStyle = P.steelDark;
-        eCtx.strokeRect(px + 1.5, py + 1.5, TILE - 3, TILE - 3);
-        eCtx.fillStyle = P.steelDark;
-        eCtx.fillRect(px + 1, py + TILE / 2 - 1, TILE - 2, 2);
-        eCtx.fillRect(px + TILE / 2 - 1, py + 1, 2, TILE - 2);
-      } else if (t.type === 'water') {
-        eCtx.fillStyle = P.water;
-        eCtx.fillRect(px + 1, py + 1, TILE - 2, TILE - 2);
-        eCtx.fillStyle = P.waterLight;
-        eCtx.fillRect(px + 4, py + TILE / 2 - 1, TILE - 8, 2);
-      } else if (t.type === 'trees') {
-        eCtx.fillStyle = P.treesDark;
-        eCtx.fillRect(px + 1, py + 1, TILE - 2, TILE - 2);
-        eCtx.fillStyle = P.trees;
-        eCtx.beginPath();
-        eCtx.arc(px + TILE / 2, py + TILE / 2, TILE * 0.3, 0, Math.PI * 2);
-        eCtx.fill();
-        eCtx.fillStyle = P.treesLight;
-        eCtx.beginPath();
-        eCtx.arc(px + TILE / 2 - 2, py + TILE / 2 - 2, TILE * 0.15, 0, Math.PI * 2);
-        eCtx.fill();
-      }
-    }
-  }
-
-  // База
-  const b = state.editor.base;
-  if (b) {
-    const bpx = b.x * TILE;
-    const bpy = b.y * TILE;
-    const bs = TILE * 2;
-    eCtx.fillStyle = P.baseBg;
-    eCtx.fillRect(bpx, bpy, bs, bs);
-    eCtx.strokeStyle = P.base;
-    eCtx.lineWidth = 2;
-    eCtx.strokeRect(bpx + 1, bpy + 1, bs - 2, bs - 2);
-    eCtx.save();
-    eCtx.font = `${bs * 0.7}px serif`;
-    eCtx.textAlign = 'center';
-    eCtx.textBaseline = 'middle';
-    eCtx.fillText('🦅', bpx + bs / 2, bpy + bs / 2 + 2);
-    eCtx.restore();
-  }
-}
-
-// ---------- Рисование ----------
-function editorCellFromEvent(clientX, clientY) {
-  const rect = editorCanvas.getBoundingClientRect();
-  const scaleX = editorCanvas.width / rect.width;
-  const scaleY = editorCanvas.height / rect.height;
-  const cx = (clientX - rect.left) * scaleX;
-  const cy = (clientY - rect.top) * scaleY;
-  const x = Math.floor(cx / CONFIG.TILE);
-  const y = Math.floor(cy / CONFIG.TILE);
-  if (x < 0 || x >= state.editor.gridSize || y < 0 || y >= state.editor.gridSize) return null;
-  return { x, y };
-}
-
-function paintAt(x, y, forceErase) {
-  if (!state.editor.active) return;
-  const erasing = forceErase || state.editor.selectedTile === 'empty';
-
-  if (!erasing && state.editor.selectedTile === 'base') {
-    const bx = Math.max(0, Math.min(state.editor.gridSize - 2, x));
-    const by = Math.max(0, Math.min(state.editor.gridSize - 2, y));
-    state.editor.base = { x: bx, y: by };
-    for (let dy = 0; dy < 2; dy++)
-      for (let dx = 0; dx < 2; dx++)
-        state.editor.map[by + dy][bx + dx] = null;
-    renderEditor();
-    return;
-  }
-
-  if (isBaseArea(x, y)) return;
-
-  if (erasing) state.editor.map[y][x] = null;
-  else {
-    const tile = state.editor.selectedTile;
-    if (tile === 'brick') state.editor.map[y][x] = { type: 'brick', sub: [1, 1, 1, 1] };
-    else if (tile === 'steel') state.editor.map[y][x] = { type: 'steel' };
-    else if (tile === 'water') state.editor.map[y][x] = { type: 'water' };
-    else if (tile === 'trees') state.editor.map[y][x] = { type: 'trees' };
-  }
-  renderEditor();
-}
-
-if (editorCanvas) {
-  editorCanvas.addEventListener('mousedown', (e) => {
-    e.preventDefault();
-    state.editor.painting = true;
-    state.editor.eraseMode = (e.button === 2);
-    const cell = editorCellFromEvent(e.clientX, e.clientY);
-    if (cell) paintAt(cell.x, cell.y, state.editor.eraseMode);
-  });
-  editorCanvas.addEventListener('mousemove', (e) => {
-    if (!state.editor.painting) return;
-    const cell = editorCellFromEvent(e.clientX, e.clientY);
-    if (cell) paintAt(cell.x, cell.y, state.editor.eraseMode);
-  });
-  window.addEventListener('mouseup', () => {
-    state.editor.painting = false;
-    state.editor.eraseMode = false;
-  });
-  editorCanvas.addEventListener('contextmenu', (e) => e.preventDefault());
-
-  editorCanvas.addEventListener('touchstart', (e) => {
-    e.preventDefault();
-    const t = e.touches[0];
-    const cell = editorCellFromEvent(t.clientX, t.clientY);
-    if (cell) paintAt(cell.x, cell.y, false);
-  }, { passive: false });
-  editorCanvas.addEventListener('touchmove', (e) => {
-    e.preventDefault();
-    const t = e.touches[0];
-    const cell = editorCellFromEvent(t.clientX, t.clientY);
-    if (cell) paintAt(cell.x, cell.y, false);
-  }, { passive: false });
-}
-
-// ---------- Кнопки редактора ----------
-function bindBtn(btn, handler) {
-  if (!btn) return;
-  const fire = (e) => { e.preventDefault(); e.stopPropagation(); handler(); };
-  btn.addEventListener('click', fire);
-  btn.addEventListener('touchend', fire, { passive: false });
-}
-
-bindBtn(editorClearBtn, () => {
-  if (!state.editor.map) return;
-  for (let y = 0; y < state.editor.gridSize; y++)
-    for (let x = 0; x < state.editor.gridSize; x++)
-      state.editor.map[y][x] = null;
-  renderEditor();
-});
-
-bindBtn(editorCloseBtn, () => closeEditor());
-
-bindBtn(editorSaveBtn, () => {
-  const data = serializeCustom(state.editor.map, state.editor.base, state.editor.noEnemies);
-  const levels = getCustomLevels();
-  const now = new Date();
-  const name = `Мой уровень ${now.toLocaleDateString()} ${now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
-  levels.push({
-    id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
-    name,
-    ...data,
-  });
-  saveCustomLevels(levels);
-  const original = editorSaveBtn.textContent;
-  editorSaveBtn.textContent = '✅ Сохранено';
-  editorSaveBtn.disabled = true;
-  setTimeout(() => {
-    editorSaveBtn.textContent = original;
-    editorSaveBtn.disabled = false;
-  }, 1200);
-});
-
-bindBtn(editorApplyBtn, () => {
-  applyEditorToGame();
-});
-
-// ---------- Применение к игре ----------
-function applyEditorToGame() {
-  if (!state.editor.map) return;
-
-  const size = state.editor.gridSize;
-
-  // 1) Обновить глобальный GRID (если размер изменился)
-  CONFIG.GRID = size;
-  updateW();
-
-  // 2) Собрать карту
-  const base = { x: state.editor.base.x, y: state.editor.base.y, alive: true };
-  const map = [];
-  for (let y = 0; y < size; y++) {
-    const row = [];
-    for (let x = 0; x < size; x++) {
-      const t = state.editor.map[y][x];
-      if (!t) row.push(null);
-      else if (t.type === 'brick') row.push({ type: 'brick', sub: [1, 1, 1, 1] });
-      else row.push({ type: t.type });
-    }
-    map.push(row);
-  }
-
-  // 3) Расчистить зону игрока (слева от базы, в нижних рядах)
-  for (let dy = size - 3; dy < size; dy++) {
-    for (let dx = 0; dx < Math.max(1, base.x - 1); dx++) {
-      if (dy >= 0 && dy < size && dx >= 0 && dx < size) {
-        map[dy][dx] = null;
-      }
-    }
-  }
-
-  // 4) Записать в state
-  state.base = base;
-  state.map = map;
-  state.enemies = [];
-  state.bullets = [];
-  state.noEnemies = !!state.editor.noEnemies;
-
-  // 5) Очередь врагов
-  if (state.noEnemies) {
-    state.spawnQueue = [];
-    state.enemiesTotal = 0;
-    state.enemiesKilled = 0;
-  } else {
-    state.spawnQueue = buildSpawnQueue(state.level);
-    state.enemiesTotal = state.spawnQueue.length;
-    state.enemiesKilled = 0;
-  }
-
-  state.pendingRespawn = false;
-  state.respawnTimerMs = 0;
-  state.invulnTimerMs = 0;
-  state.lastResult = null;
-  state.awaitingUpgrade = false;
-
-  closeEditor();
-  // Если игра уже была — перезапускаем
-  if (!state.isRunning) {
-    // Сбрасываем очки/жизни если пользователь в меню
-    state.level = 1;
-    state.score = 0;
-    state.lives = 3;
-    state.build = { speed: 1, armor: 1, reload: 1, damage: 1, doubleShot: 0 };
-  }
-
-  startGame(true);
-  render();
-}
-
-// ---------- Мои уровни ----------
-function openLevels() {
-  levelsOverlay.classList.remove('hidden');
-  overlay.classList.add('hidden');
-  renderLevelsList();
-}
-
-function renderLevelsList() {
-  const levels = getCustomLevels();
-  levelsList.innerHTML = '';
-
-  if (levels.length === 0) {
-    const empty = document.createElement('div');
-    empty.className = 'levels-empty';
-    empty.textContent = 'Пока нет сохранённых уровней';
-    levelsList.appendChild(empty);
-    return;
-  }
-
-  for (const lvl of levels) {
-    const item = document.createElement('div');
-    item.className = 'level-item';
-
-    const name = document.createElement('div');
-    name.className = 'level-item-name';
-    name.textContent = lvl.name || 'Без названия';
-    item.appendChild(name);
-
-    // Кнопка «играть этот уровень»
-    const playBtn = document.createElement('button');
-    playBtn.className = 'level-item-btn';
-    playBtn.type = 'button';
-    playBtn.title = 'Играть';
-    playBtn.textContent = '▶';
-    const onPlay = (e) => {
-      e.preventDefault(); e.stopPropagation();
-      playCustomLevel(lvl);
-    };
-    playBtn.addEventListener('click', onPlay);
-    playBtn.addEventListener('touchend', onPlay, { passive: false });
-    item.appendChild(playBtn);
-
-    // Редактировать
-    const editBtn = document.createElement('button');
-    editBtn.className = 'level-item-btn';
-    editBtn.type = 'button';
-    editBtn.title = 'Редактировать';
-    editBtn.textContent = '✎';
-    const onEdit = (e) => {
-      e.preventDefault(); e.stopPropagation();
-      openLevelInEditor(lvl);
-    };
-    editBtn.addEventListener('click', onEdit);
-    editBtn.addEventListener('touchend', onEdit, { passive: false });
-    item.appendChild(editBtn);
-
-    // Удалить
-    const delBtn = document.createElement('button');
-    delBtn.className = 'level-item-btn danger';
-    delBtn.type = 'button';
-    delBtn.title = 'Удалить';
-    delBtn.textContent = '✕';
-    const onDel = (e) => {
-      e.preventDefault(); e.stopPropagation();
-      const remaining = getCustomLevels().filter(l => l.id !== lvl.id);
-      saveCustomLevels(remaining);
-      renderLevelsList();
-    };
-    delBtn.addEventListener('click', onDel);
-    delBtn.addEventListener('touchend', onDel, { passive: false });
-    item.appendChild(delBtn);
-
-    levelsList.appendChild(item);
-  }
-}
-
-function playCustomLevel(lvl) {
-  const data = deserializeCustom(lvl);
-
-  CONFIG.GRID = data.gridSize;
-  updateW();
-
-  state.base = { x: data.base.x, y: data.base.y, alive: true };
-  state.map = data.map;
-  state.enemies = [];
-  state.bullets = [];
-  state.noEnemies = !!data.noEnemies;
-
-  if (state.noEnemies) {
-    state.spawnQueue = [];
-    state.enemiesTotal = 0;
-    state.enemiesKilled = 0;
-  } else {
-    state.spawnQueue = buildSpawnQueue(state.level);
-    state.enemiesTotal = state.spawnQueue.length;
-    state.enemiesKilled = 0;
-  }
-
-  state.level = 1;
-  state.score = 0;
-  state.lives = 3;
-  state.build = { speed: 1, armor: 1, reload: 1, damage: 1, doubleShot: 0 };
-
-  levelsOverlay.classList.add('hidden');
-  startGame(true);
-}
-
-function openLevelInEditor(lvl) {
-  const data = deserializeCustom(lvl);
-
-  // Подгоняем editor canvas под размер
-  CONFIG.GRID = data.gridSize;
-  updateW();
-
-  state.editor.active = true;
-  state.editor.selectedTile = 'empty';
-  state.editor.map = data.map;
-  state.editor.base = data.base;
-  state.editor.painting = false;
-  state.editor.gridSize = data.gridSize;
-  state.editor.noEnemies = data.noEnemies;
-
-  editorCanvas.width = CONFIG.TILE * data.gridSize;
-  editorCanvas.height = CONFIG.TILE * data.gridSize;
-
-  if (noEnemiesChk) noEnemiesChk.checked = data.noEnemies;
-
-  updateSizeButtons();
-  updatePaletteUI();
-
-  levelsOverlay.classList.add('hidden');
-  overlay.classList.add('hidden');
-  editorOverlay.classList.remove('hidden');
-
-  renderEditor();
-}
-
-// ---------- Кнопки в меню и паузе ----------
-bindBtn(menuEditorBtn, () => openEditor());
-bindBtn(menuLevelsBtn, () => openLevels());
-bindBtn(openEditorBtn, () => openEditor());
-bindBtn(openLevelsBtn, () => openLevels());
-
-bindBtn(levelsCloseBtn, () => {
-  levelsOverlay.classList.add('hidden');
-  if (state.isRunning && state.isPaused) {
-    overlayTitle.textContent = '⏸ Пауза';
-    overlayText.textContent = 'Space или P — продолжить';
-    startBtn.textContent = 'Продолжить';
-    if (pauseExtras) pauseExtras.classList.remove('hidden');
-  } else {
-    if (state.lastResult !== 'lose') {
-      overlayTitle.textContent = '🎮 Стальные коты';
-      overlayText.textContent = 'Защити базу от вражеских танков';
-      startBtn.textContent = 'Играть';
-    }
-    if (menuExtras) menuExtras.classList.remove('hidden');
-    if (pauseExtras) pauseExtras.classList.add('hidden');
-  }
-  overlay.classList.remove('hidden');
-});
 
 // ---------------------------------------------------------------------
 // INIT

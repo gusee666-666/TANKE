@@ -72,26 +72,6 @@
           <h2 id="overlay-title">🎮 Стальные коты</h2>
           <p id="overlay-text">Защити базу от вражеских танков</p>
           <button id="start-btn" type="button">Играть</button>
-
-          <!-- 🆕 Кнопки редактора на стартовом экране -->
-          <div id="menu-extras" class="pause-extras">
-            <button id="menu-editor-btn" class="overlay-extra-btn" type="button">
-              🎨 Редактор карт
-            </button>
-            <button id="menu-levels-btn" class="overlay-extra-btn" type="button">
-              📂 Мои уровни
-            </button>
-          </div>
-
-          <!-- 🆕 Кнопки для паузы (показываются только когда игра на паузе) -->
-          <div id="pause-extras" class="pause-extras hidden">
-            <button id="open-editor-btn" class="overlay-extra-btn" type="button">
-              🎨 Редактор карт
-            </button>
-            <button id="open-levels-btn" class="overlay-extra-btn" type="button">
-              📂 Мои уровни
-            </button>
-          </div>
         </div>
       </div>
     </div>
@@ -110,82 +90,6 @@
     <button id="fire-btn" class="fire-btn" type="button" aria-label="Огонь">
       <span class="fire-btn-icon">🔥</span>
     </button>
-  </div>
-
-  <!-- 🆕 Редактор карт -->
-  <div id="editor-overlay" class="editor-overlay hidden" role="dialog" aria-modal="true">
-    <div class="editor-content">
-      <div class="editor-header">
-        <h2 class="editor-title">🎨 Редактор карт</h2>
-        <p class="editor-hint">Выбери тайл, кликни по клетке. ПКМ — стереть.</p>
-      </div>
-
-      <div class="editor-body">
-        <div class="editor-palette">
-          <!-- 🆕 Управление размером -->
-          <div class="editor-section-title">Размер карты</div>
-          <div class="size-controls">
-            <button class="size-btn" id="size-minus" type="button" aria-label="Меньше">−</button>
-            <span class="size-value" id="size-value">17 × 17</span>
-            <button class="size-btn" id="size-plus" type="button" aria-label="Больше">+</button>
-          </div>
-
-          <div class="editor-section-title">Тайлы</div>
-          <button class="palette-btn active" data-tile="empty" type="button">
-            <span class="palette-swatch" style="background:#0a0612"></span>
-            <span>Пусто</span>
-          </button>
-          <button class="palette-btn" data-tile="brick" type="button">
-            <span class="palette-swatch" style="background:#b8543a"></span>
-            <span>Кирпич</span>
-          </button>
-          <button class="palette-btn" data-tile="steel" type="button">
-            <span class="palette-swatch" style="background:#c8c8d2"></span>
-            <span>Сталь</span>
-          </button>
-          <button class="palette-btn" data-tile="water" type="button">
-            <span class="palette-swatch" style="background:#3a6bc4"></span>
-            <span>Вода</span>
-          </button>
-          <button class="palette-btn" data-tile="trees" type="button">
-            <span class="palette-swatch" style="background:#2d7a3a"></span>
-            <span>Кусты</span>
-          </button>
-          <button class="palette-btn" data-tile="base" type="button">
-            <span class="palette-swatch" style="background:#ffd24a"></span>
-            <span>База</span>
-          </button>
-
-          <!-- 🆕 Опции -->
-          <div class="editor-section-title">Опции</div>
-          <label class="editor-checkbox">
-            <input type="checkbox" id="editor-no-enemies">
-            <span class="checkbox-mark"></span>
-            <span class="checkbox-label">Без врагов</span>
-          </label>
-        </div>
-
-        <div class="editor-canvas-wrap">
-          <canvas id="editor-canvas" width="476" height="476"></canvas>
-        </div>
-      </div>
-
-      <div class="editor-actions">
-        <button class="editor-btn" id="editor-clear" type="button">🗑 Очистить</button>
-        <button class="editor-btn" id="editor-close" type="button">✕ Отмена</button>
-        <button class="editor-btn" id="editor-save"  type="button">💾 Сохранить</button>
-        <button class="editor-btn primary" id="editor-apply" type="button">▶ Применить и играть</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- 🆕 Мои уровни -->
-  <div id="levels-overlay" class="levels-overlay hidden" role="dialog" aria-modal="true">
-    <div class="levels-content">
-      <h2 class="levels-title">📂 Мои уровни</h2>
-      <div class="levels-list" id="levels-list"></div>
-      <button class="editor-btn" id="levels-close" type="button">✕ Закрыть</button>
-    </div>
   </div>
 
   <!-- Экран выбора апгрейда -->
